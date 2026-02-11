@@ -1,188 +1,191 @@
-const express = require("express");
-const app = express();
-
-app.get("/", (req, res) => {
-  res.send("Bot is running.");
-});
-
-app.listen(process.env.PORT || 3000, () => {
-  console.log("Web server started");
-});
-
 const {
   Client,
   GatewayIntentBits,
+  Partials,
+  EmbedBuilder,
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
+  ModalBuilder,
+  TextInputBuilder,
+  TextInputStyle,
   ChannelType,
-  EmbedBuilder,
   PermissionsBitField,
-  SlashCommandBuilder,
-  REST,
-  Routes
 } = require("discord.js");
 
-const transcript = require("discord-html-transcripts");
+const express = require("express");
+const transcripts = require("discord-html-transcripts");
+
+const app = express();
+app.get("/", (req, res) => res.send("Bot is running."));
+app.listen(process.env.PORT || 3000);
 
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMembers,
     GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent
-  ]
+    GatewayIntentBits.MessageContent,
+  ],
+  partials: [Partials.Channel],
 });
 
-const TOKEN = process.env.TOKEN;
-const STAFF_ROLE_ID = process.env.STAFF_ROLE_ID;
-const TICKET_CATEGORY_ID = process.env.TICKET_CATEGORY_ID;
-const LOG_CHANNEL_ID = process.env.LOG_CHANNEL_ID;
-const CLIENT_ID = process.env.CLIENT_ID;
-const GUILD_ID = process.env.GUILD_ID;
+// ===== CONFIG =====
+const CATEGORY_ID = "1454444606815993970";
+const PANEL_CHANNEL_ID = "1454444771626975305";
+const LOG_CHANNEL_ID = "1471050244442558589";
+const STAFF_ROLE_1 = "1454488584869646368";
+const STAFF_ROLE_2 = "1454449956139302945";
 
-// Register slash command
-const commands = [
-  new SlashCommandBuilder()
-    .setName("panel")
-    .setDescription("Send the support ticket panel")
-    .toJSON()
-];
+// 🔥 PUT YOUR IMAGE LINKS HERE
+const BANNER_IMAGE = "https://YOUR-BANNER-LINK.png";
+const THUMBNAIL_IMAGE = "https://YOUR-LOGO-LINK.png";
 
-const rest = new REST({ version: "10" }).setToken(TOKEN);
+// ===== TICKET TYPES =====
+const ticketTypes = {
+  ban: "Ban Appeal",
+  report: "Player Report",
+  media: "Media Request",
+  discord: "Discord Report",
+  bug: "Bug Report",
+  purchase: "Purchase Support",
+  connection: "Connection Issue",
+};
 
-(async () => {
-  try {
-    await rest.put(
-      Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID),
-      { body: commands }
-    );
-    console.log("Slash command registered");
-  } catch (error) {
-    console.error(error);
-  }
-})();
-
-client.once("clientReady", () => {
+// ===== READY EVENT =====
+client.once("ready", async () => {
   console.log(`${client.user.tag} online`);
+
+  const channel = await client.channels.fetch(PANEL_CHANNEL_ID);
+
+  const embed = new EmbedBuilder()
+    .setTitle("🎟️ GraveSMP Support Center")
+    .setDescription(
+      "Welcome to **GraveSMP Support**.\n\n" +
+      "Select a ticket type below.\n" +
+      "Opening unnecessary tickets may result in punishment."
+    )
+    .setColor("#8B0000")
+    .setImage(BANNER_IMAGE)
+    .setThumbnail(THUMBNAIL_IMAGE)
+    .setFooter({ text: "GraveSMP • Support System" });
+
+  const row1 = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId("ban").setLabel("Ban Appeal").setStyle(ButtonStyle.Danger),
+    new ButtonBuilder().setCustomId("report").setLabel("Player Report").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId("media").setLabel("Media Request").setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId("discord").setLabel("Discord Report").setStyle(ButtonStyle.Secondary)
+  );
+
+  const row2 = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId("bug").setLabel("Bug Report").setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId("purchase").setLabel("Purchase Support").setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId("connection").setLabel("Connection Issue").setStyle(ButtonStyle.Secondary)
+  );
+
+  await channel.send({ embeds: [embed], components: [row1, row2] });
 });
 
-client.on("interactionCreate", async interaction => {
+// ===== INTERACTIONS =====
+client.on("interactionCreate", async (interaction) => {
 
-  // Slash command
-  if (interaction.isChatInputCommand()) {
-    if (interaction.commandName === "panel") {
+  // BUTTON CLICK
+  if (interaction.isButton()) {
+    if (!ticketTypes[interaction.customId]) return;
 
-      const embed = new EmbedBuilder()
-        .setTitle("GraveSMP | Support")
-        .setDescription(
-          "Open a ticket below.\n\n" +
-          "• 🎥 Media\n" +
-          "• 🐛 Bug Report\n" +
-          "• 💳 Purchase Support"
-        )
-        .setColor(0x2b2d31);
+    const existing = interaction.guild.channels.cache.find(
+      c => c.name === `${interaction.user.username}-${interaction.customId}`
+    );
 
-      const row = new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-          .setCustomId("media")
-          .setLabel("🎥 Media")
-          .setStyle(ButtonStyle.Primary),
-        new ButtonBuilder()
-          .setCustomId("bug")
-          .setLabel("🐛 Bug")
-          .setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder()
-          .setCustomId("purchase")
-          .setLabel("💳 Purchase")
-          .setStyle(ButtonStyle.Success)
-      );
-
-      await interaction.reply({
-        embeds: [embed],
-        components: [row]
-      });
+    if (existing) {
+      return interaction.reply({ content: "You already have this ticket open.", ephemeral: true });
     }
+
+    const modal = new ModalBuilder()
+      .setCustomId(`modal_${interaction.customId}`)
+      .setTitle(ticketTypes[interaction.customId]);
+
+    const question = new TextInputBuilder()
+      .setCustomId("details")
+      .setLabel("Explain your issue in detail")
+      .setStyle(TextInputStyle.Paragraph)
+      .setRequired(true);
+
+    const row = new ActionRowBuilder().addComponents(question);
+    modal.addComponents(row);
+
+    await interaction.showModal(modal);
   }
 
-  // Button handling
-  if (!interaction.isButton()) return;
+  // MODAL SUBMIT
+  if (interaction.isModalSubmit()) {
+    const type = interaction.customId.replace("modal_", "");
+    const details = interaction.fields.getTextInputValue("details");
 
-  if (["media", "bug", "purchase"].includes(interaction.customId)) {
-
-    const channel = await interaction.guild.channels.create({
-      name: `${interaction.customId}-${interaction.user.username}`,
+    const ticketChannel = await interaction.guild.channels.create({
+      name: `${interaction.user.username}-${type}`,
       type: ChannelType.GuildText,
-      parent: TICKET_CATEGORY_ID,
+      parent: CATEGORY_ID,
       permissionOverwrites: [
         {
           id: interaction.guild.id,
-          deny: [PermissionsBitField.Flags.ViewChannel]
+          deny: [PermissionsBitField.Flags.ViewChannel],
         },
         {
           id: interaction.user.id,
           allow: [
             PermissionsBitField.Flags.ViewChannel,
-            PermissionsBitField.Flags.SendMessages
-          ]
+            PermissionsBitField.Flags.SendMessages,
+          ],
         },
         {
-          id: STAFF_ROLE_ID,
-          allow: [
-            PermissionsBitField.Flags.ViewChannel,
-            PermissionsBitField.Flags.SendMessages
-          ]
-        }
-      ]
+          id: STAFF_ROLE_1,
+          allow: [PermissionsBitField.Flags.ViewChannel],
+        },
+        {
+          id: STAFF_ROLE_2,
+          allow: [PermissionsBitField.Flags.ViewChannel],
+        },
+      ],
     });
 
     const embed = new EmbedBuilder()
-      .setTitle(`📩 ${interaction.customId.toUpperCase()} TICKET`)
+      .setTitle(`${ticketTypes[type]} Ticket`)
       .setDescription(
-        `Hello ${interaction.user}, please provide all required information.\n\nA staff member will assist you shortly.`
+        `**User:** ${interaction.user}\n\n` +
+        `**Details:**\n${details}`
       )
-      .setColor(0x5865F2);
+      .setColor("#8B0000");
 
-    const closeRow = new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId("close_ticket")
-        .setLabel("❌ Close Ticket")
-        .setStyle(ButtonStyle.Danger)
+    const controls = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId("close_ticket").setLabel("Close").setStyle(ButtonStyle.Danger),
+      new ButtonBuilder().setCustomId("save_transcript").setLabel("Transcript").setStyle(ButtonStyle.Secondary)
     );
 
-    await channel.send({ embeds: [embed], components: [closeRow] });
-
-    await interaction.reply({
-      content: `✅ Ticket created: ${channel}`,
-      ephemeral: true
+    await ticketChannel.send({
+      content: `<@&${STAFF_ROLE_1}> <@&${STAFF_ROLE_2}>`,
+      embeds: [embed],
+      components: [controls],
     });
+
+    await interaction.reply({ content: `Your ticket has been created: ${ticketChannel}`, ephemeral: true });
   }
 
+  // CLOSE BUTTON
   if (interaction.customId === "close_ticket") {
+    await interaction.reply("Closing ticket in 5 seconds...");
+    setTimeout(() => interaction.channel.delete(), 5000);
+  }
 
-    await interaction.deferReply({ ephemeral: true });
-
-    const attachment = await transcript.createTranscript(
-      interaction.channel,
-      {
-        limit: -1,
-        returnType: "attachment",
-        filename: `ticket-${interaction.channel.name}.html`
-      }
-    );
-
-    const logChannel =
-      interaction.guild.channels.cache.get(LOG_CHANNEL_ID);
-
-    if (logChannel) {
-      await logChannel.send({
-        content: `📄 Transcript for **${interaction.channel.name}**`,
-        files: [attachment]
-      });
-    }
-
-    await interaction.channel.delete();
+  // TRANSCRIPT BUTTON
+  if (interaction.customId === "save_transcript") {
+    const attachment = await transcripts.createTranscript(interaction.channel);
+    const logChannel = await client.channels.fetch(LOG_CHANNEL_ID);
+    await logChannel.send({
+      content: `Transcript from ${interaction.channel.name}`,
+      files: [attachment],
+    });
+    await interaction.reply({ content: "Transcript saved to logs.", ephemeral: true });
   }
 });
 
-client.login(TOKEN);
+client.login(process.env.TOKEN);
