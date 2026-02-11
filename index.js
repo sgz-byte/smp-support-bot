@@ -79,19 +79,14 @@ client.once("ready", async () => {
   await registerCommands();
 });
 
-/* ================= TICKET FORMS ================= */
+/* ================= TICKETS ================= */
 
 const forms = {
-  ban: ["Username", "Platform", "Ban ID", "Why unban?"],
+  ban: ["Username", "Platform", "Ban ID", "Why should we unban you?"],
   report: ["Player IGN", "Proof Link", "What happened?"],
-  media: ["Username", "Videos", "Requirements met?"],
-  discord: ["Reported User", "Proof", "What happened?"],
-  bug: ["Bug Name", "Video", "Describe bug"],
-  purchase: ["Username", "What bought?", "Issue?"],
-  connection: ["Username", "Error", "Describe issue"]
+  media: ["Username", "Video Links", "Requirements met?"],
+  bug: ["Bug Name", "Video Proof", "Describe the bug"]
 };
-
-/* ================= INTERACTIONS ================= */
 
 client.on("interactionCreate", async interaction => {
 
@@ -121,7 +116,7 @@ client.on("interactionCreate", async interaction => {
   if (interaction.isButton() && forms[interaction.customId]) {
 
     if (openTickets.has(interaction.user.id))
-      return interaction.reply({ content: "You already have a ticket.", ephemeral: true });
+      return interaction.reply({ content: "You already have a ticket open.", ephemeral: true });
 
     const modal = new ModalBuilder()
       .setCustomId(`modal_${interaction.customId}`)
@@ -167,11 +162,14 @@ client.on("interactionCreate", async interaction => {
       .setColor("#8B0000");
 
     forms[type].forEach((q, i) => {
-      embed.addFields({ name: q, value: interaction.fields.getTextInputValue(`q${i}`) });
+      embed.addFields({
+        name: q,
+        value: interaction.fields.getTextInputValue(`q${i}`)
+      });
     });
 
     const controls = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId("close").setLabel("Close").setStyle(ButtonStyle.Danger)
+      new ButtonBuilder().setCustomId("close").setLabel("Close Ticket").setStyle(ButtonStyle.Danger)
     );
 
     await channel.send({
@@ -184,18 +182,24 @@ client.on("interactionCreate", async interaction => {
   }
 
   if (interaction.customId === "close") {
+
     const transcript = await transcripts.createTranscript(interaction.channel);
     const logChannel = await client.channels.fetch(LOG_CHANNEL_ID);
-    await logChannel.send({ files: [transcript] });
+
+    await logChannel.send({
+      content: `Ticket closed by ${interaction.user}`,
+      files: [transcript]
+    });
 
     openTickets.delete(interaction.channel.topic);
     return interaction.channel.delete();
   }
 });
 
-/* ================= LEVEL SYSTEM ================= */
+/* ================= GRAVE LEVEL SYSTEM V2 ================= */
 
 const LEVELS_FILE = "./levels.json";
+
 let levels = fs.existsSync(LEVELS_FILE)
   ? JSON.parse(fs.readFileSync(LEVELS_FILE))
   : {};
@@ -205,89 +209,142 @@ function saveLevels() {
 }
 
 function xpNeeded(level) {
-  return 100 * (level + 1);
+  return 200 * (level + 1);
 }
 
-/* PUT YOUR REAL ROLE IDS BELOW */
-
 const rankRoles = [
-  { level: 1, roleId: "1471268892050591999" },
-  { level: 3, roleId: "1471269005502316714" },
-  { level: 5, roleId: "1471269098993221665" },
-  { level: 10, roleId: "1471269180899594360" },
-  { level: 20, roleId: "1471269292380262586" },
-  { level: 30, roleId: "1471269374794010697" },
-  { level: 40, roleId: "1471269477642404040" },
-  { level: 50, roleId: "1471269566289281054" },
-  { level: 70, roleId: "1471269661554512026" },
-  { level: 90, roleId: "1471269746132389909" }
+  { level: 1, roleId: "1471268892050591999", name: "🩸 Reaper" },
+  { level: 3, roleId: "1471269005502316714", name: "☠ Ghoul" },
+  { level: 5, roleId: "1471269098993221665", name: "🪦 Bloodbound" },
+  { level: 10, roleId: "1471269180899594360", name: "😈 Demon" },
+  { level: 20, roleId: "1471269292380262586", name: "🔥 Hellspawn" },
+  { level: 30, roleId: "1471269374794010697", name: "🧟 Warlord" },
+  { level: 40, roleId: "1471269477642404040", name: "⚰ Gravekeeper" },
+  { level: 50, roleId: "1471269566289281054", name: "🕯 Deathbringer" },
+  { level: 70, roleId: "1471269661554512026", name: "👁 Shadowlord" },
+  { level: 90, roleId: "1471269746132389909", name: "💀 Grave King" }
 ];
 
 const xpCooldown = new Set();
+const lastMessage = new Map();
+
+function createProgressBar(current, needed) {
+  const percent = current / needed;
+  const filled = Math.round(percent * 20);
+  const empty = 20 - filled;
+  return "█".repeat(filled) + "░".repeat(empty);
+}
+
+function calculateXP(message) {
+  const length = message.content.length;
+  if (length < 6) return 0;
+  let xp = Math.floor(length / 10);
+  if (xp > 25) xp = 25;
+  return xp;
+}
 
 client.on("messageCreate", async message => {
 
   if (message.author.bot) return;
 
-  /* COMMAND CHANNEL */
   if (message.channel.id === COMMANDS_CHANNEL_ID) {
 
     if (message.content === "!rank") {
-      const data = levels[message.author.id];
-      if (!data) return message.reply("No XP yet.");
 
-      return message.reply(
-        `🪦 Level: ${data.level}\nXP: ${data.xp}/${xpNeeded(data.level)}`
-      );
+      const data = levels[message.author.id];
+      if (!data) return message.reply("You have no XP yet.");
+
+      const needed = xpNeeded(data.level);
+      const bar = createProgressBar(data.xp, needed);
+      const percent = Math.floor((data.xp / needed) * 100);
+
+      return message.reply({
+        embeds: [
+          new EmbedBuilder()
+            .setColor("#8B0000")
+            .setTitle("💀 Grave Rank")
+            .setDescription(
+              `Level: ${data.level}\n\nXP: ${data.xp}/${needed}\n[${bar}] ${percent}%`
+            )
+        ]
+      });
     }
 
     if (message.content === "!leaderboard") {
+
       const sorted = Object.entries(levels)
-        .sort((a, b) => b[1].level - a[1].level)
+        .sort((a, b) => b[1].level - a[1].level || b[1].xp - a[1].xp)
         .slice(0, 10);
 
-      let text = "💀 Grave Leaderboard 💀\n\n";
+      let desc = "";
 
       for (let i = 0; i < sorted.length; i++) {
         const user = await client.users.fetch(sorted[i][0]);
-        text += `${i + 1}. ${user.username} — Level ${sorted[i][1].level}\n`;
+        desc += `**${i + 1}.** ${user.username} — Level ${sorted[i][1].level}\n`;
       }
 
-      return message.channel.send(text);
+      return message.channel.send({
+        embeds: [
+          new EmbedBuilder()
+            .setColor("#8B0000")
+            .setTitle("🏆 Grave Leaderboard")
+            .setDescription(desc)
+        ]
+      });
     }
 
     return;
   }
 
-  /* XP SYSTEM */
+  if (/^\p{Emoji}+$/u.test(message.content)) return;
+  if (lastMessage.get(message.author.id) === message.content) return;
 
-  if (message.content.length < 5) return;
+  lastMessage.set(message.author.id, message.content);
+
   if (xpCooldown.has(message.author.id)) return;
-
   xpCooldown.add(message.author.id);
   setTimeout(() => xpCooldown.delete(message.author.id), 60000);
+
+  const xpGain = calculateXP(message);
+  if (xpGain <= 0) return;
 
   if (!levels[message.author.id])
     levels[message.author.id] = { xp: 0, level: 0 };
 
-  levels[message.author.id].xp += 10;
+  levels[message.author.id].xp += xpGain;
 
   const needed = xpNeeded(levels[message.author.id].level);
 
   if (levels[message.author.id].xp >= needed) {
+
     levels[message.author.id].level++;
+    levels[message.author.id].xp = 0;
+
+    const newLevel = levels[message.author.id].level;
 
     const levelChannel = await client.channels.fetch(LEVELS_CHANNEL_ID);
-    levelChannel.send(
-      `🎉 ${message.author} reached Level ${levels[message.author.id].level}!`
-    );
+
+    let unlockedRank = null;
 
     for (const rank of rankRoles) {
-      if (levels[message.author.id].level === rank.level) {
+      if (newLevel === rank.level) {
         const role = message.guild.roles.cache.get(rank.roleId);
-        if (role) await message.member.roles.add(role);
+        if (role) {
+          await message.member.roles.add(role);
+          unlockedRank = rank.name;
+        }
       }
     }
+
+    const embed = new EmbedBuilder()
+      .setColor("#8B0000")
+      .setTitle("💀 A Soul Has Risen")
+      .setDescription(
+        `${message.author} reached **Level ${newLevel}**` +
+        (unlockedRank ? `\n\nUnlocked: **${unlockedRank}**` : "")
+      );
+
+    levelChannel.send({ embeds: [embed] });
   }
 
   saveLevels();
