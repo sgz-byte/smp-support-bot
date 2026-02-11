@@ -1,3 +1,14 @@
+const express = require("express");
+const app = express();
+
+app.get("/", (req, res) => {
+  res.send("Bot is running.");
+});
+
+app.listen(process.env.PORT || 3000, () => {
+  console.log("Web server started");
+});
+
 const {
   Client,
   GatewayIntentBits,
@@ -20,13 +31,13 @@ const client = new Client({
   ]
 });
 
-// ENV VARIABLES (Render)
+// ENV VARIABLES (SET THESE IN RENDER)
 const TOKEN = process.env.TOKEN;
 const STAFF_ROLE_ID = process.env.STAFF_ROLE_ID;
 const TICKET_CATEGORY_ID = process.env.TICKET_CATEGORY_ID;
 const LOG_CHANNEL_ID = process.env.LOG_CHANNEL_ID;
 
-client.once("ready", () => {
+client.once("clientReady", () => {
   console.log(`${client.user.tag} online`);
 });
 
@@ -40,15 +51,32 @@ client.on("interactionCreate", async interaction => {
       type: ChannelType.GuildText,
       parent: TICKET_CATEGORY_ID,
       permissionOverwrites: [
-        { id: interaction.guild.id, deny: [PermissionsBitField.Flags.ViewChannel] },
-        { id: interaction.user.id, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages] },
-        { id: STAFF_ROLE_ID, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages] }
+        {
+          id: interaction.guild.id,
+          deny: [PermissionsBitField.Flags.ViewChannel]
+        },
+        {
+          id: interaction.user.id,
+          allow: [
+            PermissionsBitField.Flags.ViewChannel,
+            PermissionsBitField.Flags.SendMessages
+          ]
+        },
+        {
+          id: STAFF_ROLE_ID,
+          allow: [
+            PermissionsBitField.Flags.ViewChannel,
+            PermissionsBitField.Flags.SendMessages
+          ]
+        }
       ]
     });
 
     const embed = new EmbedBuilder()
       .setTitle(`📩 ${interaction.customId.toUpperCase()} TICKET`)
-      .setDescription(`Hello ${interaction.user}, please provide all required info.\nA staff member will assist you.`)
+      .setDescription(
+        `Hello ${interaction.user}, please provide all required information.\n\nA staff member will assist you shortly.`
+      )
       .setColor(0x5865F2);
 
     const closeRow = new ActionRowBuilder().addComponents(
@@ -59,25 +87,35 @@ client.on("interactionCreate", async interaction => {
     );
 
     await channel.send({ embeds: [embed], components: [closeRow] });
-    await interaction.reply({ content: `Ticket created: ${channel}`, ephemeral: true });
+
+    await interaction.reply({
+      content: `✅ Ticket created: ${channel}`,
+      ephemeral: true
+    });
   }
 
   // CLOSE TICKET
   if (interaction.customId === "close_ticket") {
     await interaction.deferReply({ ephemeral: true });
 
-    const attachment = await transcript.createTranscript(interaction.channel, {
-      limit: -1,
-      returnType: "attachment",
-      filename: `ticket-${interaction.channel.name}.html`
-    });
+    const attachment = await transcript.createTranscript(
+      interaction.channel,
+      {
+        limit: -1,
+        returnType: "attachment",
+        filename: `ticket-${interaction.channel.name}.html`
+      }
+    );
 
-    const logChannel = interaction.guild.channels.cache.get(LOG_CHANNEL_ID);
+    const logChannel =
+      interaction.guild.channels.cache.get(LOG_CHANNEL_ID);
 
-    await logChannel.send({
-      content: `📄 Transcript for **${interaction.channel.name}**`,
-      files: [attachment]
-    });
+    if (logChannel) {
+      await logChannel.send({
+        content: `📄 Transcript for **${interaction.channel.name}**`,
+        files: [attachment]
+      });
+    }
 
     await interaction.channel.delete();
   }
