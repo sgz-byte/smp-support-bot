@@ -9,83 +9,90 @@ const {
   TextInputBuilder,
   TextInputStyle,
   ChannelType,
-  PermissionsBitField
+  PermissionsBitField,
 } = require("discord.js");
 
 const express = require("express");
 const transcripts = require("discord-html-transcripts");
 
 const app = express();
-app.get("/", (req, res) => res.send("Bot Alive"));
+app.get("/", (req, res) => res.send("Alive"));
 app.listen(process.env.PORT || 3000);
 
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages]
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages],
 });
 
 /* CONFIG */
 
-const CATEGORY_ID = "1454818204638515310"; // UPDATED
+const CATEGORY_ID = "1454818204638515310";
 const PANEL_CHANNEL_ID = "1454444771626975305";
 const LOG_CHANNEL_ID = "1471050244442558589";
 const STAFF_ROLE_1 = "1454488584869646368";
 const STAFF_ROLE_2 = "1454449956139302945";
 
-const BANNER_IMAGE = "https://cdn.discordapp.com/attachments/1457429025227280577/1471197949559181603/EC5EE755-447D-41DA-B199-868DE5A1EB65.png?ex=698e0f5c&is=698cbddc&hm=7b0368b0d8e64e27a58b77fcd77d3f5e5d5d2ff1b7b633a4615469abac57d113&";
-
-/* SYSTEM */
+const BANNER_IMAGE = null; // put image link later
 
 let ticketCounter = 1;
-const userCooldown = new Map();
-let panelSent = false;
+const cooldown = new Map();
 
 /* READY */
 
 client.once("ready", async () => {
   console.log(`${client.user.tag} online`);
 
-  if (panelSent) return;
-  panelSent = true;
-
   const channel = await client.channels.fetch(PANEL_CHANNEL_ID);
 
   const embed = new EmbedBuilder()
-    .setTitle("🎟 GraveSMP Support")
-    .setDescription("Select a ticket type below.")
-    .setColor("#8B0000")
-    .setImage(BANNER_IMAGE);
+    .setTitle("🎟 GraveSMP Support Center")
+    .setDescription("Choose a ticket type below.")
+    .setColor("#8B0000");
 
-  const row = new ActionRowBuilder().addComponents(
+  if (BANNER_IMAGE) embed.setImage(BANNER_IMAGE);
+
+  const row1 = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId("ban").setLabel("Ban Appeal").setStyle(ButtonStyle.Danger),
     new ButtonBuilder().setCustomId("report").setLabel("Player Report").setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId("media").setLabel("Media").setStyle(ButtonStyle.Success),
-    new ButtonBuilder().setCustomId("bug").setLabel("Bug").setStyle(ButtonStyle.Primary)
+    new ButtonBuilder().setCustomId("media").setLabel("Media Request").setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId("discord").setLabel("Discord Report").setStyle(ButtonStyle.Secondary)
   );
 
-  await channel.send({ embeds: [embed], components: [row] });
+  const row2 = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId("bug").setLabel("Bug Report").setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId("purchase").setLabel("Purchase Support").setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId("connection").setLabel("Connection Issue").setStyle(ButtonStyle.Secondary)
+  );
+
+  // Prevent spam panels
+  const messages = await channel.messages.fetch({ limit: 10 });
+  const alreadyExists = messages.find(m => m.author.id === client.user.id);
+
+  if (!alreadyExists) {
+    await channel.send({ embeds: [embed], components: [row1, row2] });
+  }
 });
 
 /* INTERACTIONS */
 
 client.on("interactionCreate", async (interaction) => {
-
   try {
 
-    /* BUTTON CLICK */
-    if (interaction.isButton()) {
+    /* BUTTON CLICK FOR TICKET */
+    if (interaction.isButton() &&
+        ["ban","report","media","discord","bug","purchase","connection"].includes(interaction.customId)) {
 
-      if (["claim","close","confirmclose","delete"].includes(interaction.customId)) return;
+      await interaction.deferReply({ ephemeral: true });
 
-      if (userCooldown.has(interaction.user.id)) {
-        return interaction.reply({ content: "Wait before opening another ticket.", ephemeral: true });
+      if (cooldown.has(interaction.user.id)) {
+        return interaction.editReply("Please wait before opening another ticket.");
       }
 
-      userCooldown.set(interaction.user.id, true);
-      setTimeout(() => userCooldown.delete(interaction.user.id), 8000);
+      cooldown.set(interaction.user.id, true);
+      setTimeout(() => cooldown.delete(interaction.user.id), 8000);
 
       const modal = new ModalBuilder()
         .setCustomId(`modal_${interaction.customId}`)
-        .setTitle("Ticket Information");
+        .setTitle("Ticket Form");
 
       const input = new TextInputBuilder()
         .setCustomId("details")
@@ -95,11 +102,14 @@ client.on("interactionCreate", async (interaction) => {
 
       modal.addComponents(new ActionRowBuilder().addComponents(input));
 
+      await interaction.deleteReply();
       return interaction.showModal(modal);
     }
 
     /* MODAL SUBMIT */
     if (interaction.isModalSubmit()) {
+
+      await interaction.deferReply({ ephemeral: true });
 
       const ticketNumber = String(ticketCounter++).padStart(3,"0");
 
@@ -107,6 +117,7 @@ client.on("interactionCreate", async (interaction) => {
         name: `ticket-${ticketNumber}`,
         type: ChannelType.GuildText,
         parent: CATEGORY_ID,
+        topic: interaction.user.id,
         permissionOverwrites: [
           { id: interaction.guild.id, deny: [PermissionsBitField.Flags.ViewChannel] },
           { id: interaction.user.id, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages] },
@@ -127,12 +138,12 @@ client.on("interactionCreate", async (interaction) => {
       );
 
       await channel.send({
-        content: `Welcome ${interaction.user}\n<@&${STAFF_ROLE_1}> <@&${STAFF_ROLE_2}>`,
+        content: `Welcome ${interaction.user}\nA staff member will assist you shortly.\n<@&${STAFF_ROLE_1}> <@&${STAFF_ROLE_2}>`,
         embeds: [embed],
         components: [controls]
       });
 
-      return interaction.reply({ content: `Ticket created: ${channel}`, ephemeral: true });
+      return interaction.editReply(`Your ticket has been created: ${channel}`);
     }
 
     /* CLAIM */
@@ -141,18 +152,23 @@ client.on("interactionCreate", async (interaction) => {
           !interaction.member.roles.cache.has(STAFF_ROLE_2)) {
         return interaction.reply({ content: "Staff only.", ephemeral: true });
       }
-      return interaction.reply({ content: `Claimed by ${interaction.user}` });
+
+      return interaction.reply(`Ticket claimed by ${interaction.user}`);
     }
 
     /* CLOSE */
     if (interaction.customId === "close") {
-      const row = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId("confirmclose").setLabel("Confirm Close").setStyle(ButtonStyle.Danger)
-      );
-      return interaction.reply({ content: "Are you sure?", components: [row] });
+      return interaction.reply({
+        content: "Are you sure you want to close?",
+        components: [
+          new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId("confirm").setLabel("Confirm Close").setStyle(ButtonStyle.Danger)
+          )
+        ]
+      });
     }
 
-    if (interaction.customId === "confirmclose") {
+    if (interaction.customId === "confirm") {
       const attachment = await transcripts.createTranscript(interaction.channel);
       const logChannel = await client.channels.fetch(LOG_CHANNEL_ID);
       await logChannel.send({ files: [attachment] });
@@ -166,8 +182,8 @@ client.on("interactionCreate", async (interaction) => {
 
   } catch (err) {
     console.log(err);
-    if (interaction.replied || interaction.deferred) return;
-    interaction.reply({ content: "Something broke. Try again.", ephemeral: true });
+    if (!interaction.replied)
+      interaction.reply({ content: "Something went wrong.", ephemeral: true });
   }
 });
 
