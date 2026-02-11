@@ -41,12 +41,16 @@ const LOG_CHANNEL_ID = "1471050244442558589";
 const STAFF_ROLE_1 = "1454488584869646368";
 const STAFF_ROLE_2 = "1454449956139302945";
 
-const BANNER_IMAGE = null; // optional direct https image
+const BANNER_IMAGE = "https://cdn.discordapp.com/attachments/1457429025227280577/1471197949559181603/EC5EE755-447D-41DA-B199-868DE5A1EB65.png?ex=698e0f5c&is=698cbddc&hm=7b0368b0d8e64e27a58b77fcd77d3f5e5d5d2ff1b7b633a4615469abac57d113&";
 
 /* ============================= */
 
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds]
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent
+  ]
 });
 
 const openTickets = new Collection();
@@ -80,7 +84,7 @@ client.once("ready", async () => {
 });
 
 /* ============================= */
-/* TICKET QUESTIONS */
+/* TICKET FORMS */
 /* ============================= */
 
 const forms = {
@@ -99,7 +103,7 @@ const forms = {
 
 client.on("interactionCreate", async interaction => {
 
-  /* SLASH PANEL */
+  /* PANEL COMMAND */
   if (interaction.isChatInputCommand()) {
     if (interaction.commandName === "panel") {
 
@@ -109,9 +113,8 @@ client.on("interactionCreate", async interaction => {
       const embed = new EmbedBuilder()
         .setTitle("🎟 GraveSMP Support")
         .setDescription("Select a ticket type below.")
-        .setColor("#8B0000");
-
-      if (BANNER_IMAGE) embed.setImage(BANNER_IMAGE);
+        .setColor("#8B0000")
+        .setImage(BANNER_IMAGE);
 
       const row1 = new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId("ban").setLabel("Ban Appeal").setStyle(ButtonStyle.Danger),
@@ -192,8 +195,7 @@ client.on("interactionCreate", async interaction => {
 
     const controls = new ActionRowBuilder().addComponents(
       new ButtonBuilder().setCustomId("claim").setLabel("Claim").setStyle(ButtonStyle.Primary),
-      new ButtonBuilder().setCustomId("close").setLabel("Close").setStyle(ButtonStyle.Danger),
-      new ButtonBuilder().setCustomId("delete").setLabel("Delete").setStyle(ButtonStyle.Secondary)
+      new ButtonBuilder().setCustomId("close").setLabel("Close").setStyle(ButtonStyle.Danger)
     );
 
     await channel.send({
@@ -217,10 +219,10 @@ client.on("interactionCreate", async interaction => {
   /* CLOSE */
   if (interaction.customId === "close") {
     return interaction.reply({
-      content: "Are you sure you want to close?",
+      content: "Are you sure you want to close this ticket?",
       components: [
         new ActionRowBuilder().addComponents(
-          new ButtonBuilder().setCustomId("confirm_close").setLabel("Confirm").setStyle(ButtonStyle.Danger)
+          new ButtonBuilder().setCustomId("confirm_close").setLabel("Confirm Close").setStyle(ButtonStyle.Danger)
         )
       ]
     });
@@ -234,10 +236,6 @@ client.on("interactionCreate", async interaction => {
     const owner = interaction.channel.topic;
     openTickets.delete(owner);
 
-    return interaction.channel.delete();
-  }
-
-  if (interaction.customId === "delete") {
     return interaction.channel.delete();
   }
 
