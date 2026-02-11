@@ -17,7 +17,10 @@ const {
   ButtonStyle,
   ChannelType,
   EmbedBuilder,
-  PermissionsBitField
+  PermissionsBitField,
+  SlashCommandBuilder,
+  REST,
+  Routes
 } = require("discord.js");
 
 const transcript = require("discord-html-transcripts");
@@ -31,21 +34,82 @@ const client = new Client({
   ]
 });
 
-// ENV VARIABLES (SET THESE IN RENDER)
 const TOKEN = process.env.TOKEN;
 const STAFF_ROLE_ID = process.env.STAFF_ROLE_ID;
 const TICKET_CATEGORY_ID = process.env.TICKET_CATEGORY_ID;
 const LOG_CHANNEL_ID = process.env.LOG_CHANNEL_ID;
+const CLIENT_ID = process.env.CLIENT_ID;
+const GUILD_ID = process.env.GUILD_ID;
+
+// Register slash command
+const commands = [
+  new SlashCommandBuilder()
+    .setName("panel")
+    .setDescription("Send the support ticket panel")
+    .toJSON()
+];
+
+const rest = new REST({ version: "10" }).setToken(TOKEN);
+
+(async () => {
+  try {
+    await rest.put(
+      Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID),
+      { body: commands }
+    );
+    console.log("Slash command registered");
+  } catch (error) {
+    console.error(error);
+  }
+})();
 
 client.once("clientReady", () => {
   console.log(`${client.user.tag} online`);
 });
 
 client.on("interactionCreate", async interaction => {
+
+  // Slash command
+  if (interaction.isChatInputCommand()) {
+    if (interaction.commandName === "panel") {
+
+      const embed = new EmbedBuilder()
+        .setTitle("GraveSMP | Support")
+        .setDescription(
+          "Open a ticket below.\n\n" +
+          "• 🎥 Media\n" +
+          "• 🐛 Bug Report\n" +
+          "• 💳 Purchase Support"
+        )
+        .setColor(0x2b2d31);
+
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId("media")
+          .setLabel("🎥 Media")
+          .setStyle(ButtonStyle.Primary),
+        new ButtonBuilder()
+          .setCustomId("bug")
+          .setLabel("🐛 Bug")
+          .setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder()
+          .setCustomId("purchase")
+          .setLabel("💳 Purchase")
+          .setStyle(ButtonStyle.Success)
+      );
+
+      await interaction.reply({
+        embeds: [embed],
+        components: [row]
+      });
+    }
+  }
+
+  // Button handling
   if (!interaction.isButton()) return;
 
-  // CREATE TICKET
   if (["media", "bug", "purchase"].includes(interaction.customId)) {
+
     const channel = await interaction.guild.channels.create({
       name: `${interaction.customId}-${interaction.user.username}`,
       type: ChannelType.GuildText,
@@ -94,8 +158,8 @@ client.on("interactionCreate", async interaction => {
     });
   }
 
-  // CLOSE TICKET
   if (interaction.customId === "close_ticket") {
+
     await interaction.deferReply({ ephemeral: true });
 
     const attachment = await transcript.createTranscript(
