@@ -10,18 +10,21 @@ const {
   TextInputStyle,
   ChannelType,
   PermissionsBitField,
+  REST,
+  Routes,
+  SlashCommandBuilder,
   Collection
 } = require("discord.js");
 
-const express = require("express");
 const transcripts = require("discord-html-transcripts");
+const express = require("express");
 
 /* ============================= */
-/* KEEP RENDER BOT ALIVE */
+/* KEEP RENDER ALIVE */
 /* ============================= */
 
 const app = express();
-app.get("/", (req, res) => res.send("Bot is alive"));
+app.get("/", (req, res) => res.send("Alive"));
 app.listen(process.env.PORT || 3000);
 
 /* ============================= */
@@ -29,6 +32,8 @@ app.listen(process.env.PORT || 3000);
 /* ============================= */
 
 const TOKEN = process.env.TOKEN;
+const CLIENT_ID = process.env.CLIENT_ID;
+const GUILD_ID = process.env.GUILD_ID;
 
 const CATEGORY_ID = "1454818204638515310";
 const PANEL_CHANNEL_ID = "1454444771626975305";
@@ -36,103 +41,56 @@ const LOG_CHANNEL_ID = "1471050244442558589";
 const STAFF_ROLE_1 = "1454488584869646368";
 const STAFF_ROLE_2 = "1454449956139302945";
 
-const BANNER_IMAGE = null; // put direct https link if wanted
+const BANNER_IMAGE = null; // optional direct https image
 
 /* ============================= */
 
 const client = new Client({
-  intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMessages
-  ]
+  intents: [GatewayIntentBits.Guilds]
 });
 
-let ticketCounter = 1;
 const openTickets = new Collection();
 const cooldown = new Collection();
+let ticketCounter = 1;
 
 /* ============================= */
-/* PANEL CREATION */
+/* REGISTER SLASH COMMAND */
 /* ============================= */
 
-client.once("ready", () => {
+async function registerCommands() {
+  const commands = [
+    new SlashCommandBuilder()
+      .setName("panel")
+      .setDescription("Send the ticket panel")
+  ].map(cmd => cmd.toJSON());
+
+  const rest = new REST({ version: "10" }).setToken(TOKEN);
+
+  await rest.put(
+    Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID),
+    { body: commands }
+  );
+}
+
+/* ============================= */
+
+client.once("ready", async () => {
   console.log(`${client.user.tag} online`);
-});
-
-  const panelChannel = await client.channels.fetch(PANEL_CHANNEL_ID);
-
-  const existing = await panelChannel.messages.fetch({ limit: 20 });
-  const alreadySent = existing.find(m => m.author.id === client.user.id);
-
-  if (alreadySent) return;
-
-  const embed = new EmbedBuilder()
-    .setTitle("🎟 GraveSMP Support")
-    .setDescription("Select a ticket type below.")
-    .setColor("#8B0000");
-
-  if (BANNER_IMAGE) embed.setImage(BANNER_IMAGE);
-
-  const row1 = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId("ban").setLabel("Ban Appeal").setStyle(ButtonStyle.Danger),
-    new ButtonBuilder().setCustomId("report").setLabel("Player Report").setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId("media").setLabel("Media Application").setStyle(ButtonStyle.Success),
-    new ButtonBuilder().setCustomId("discord").setLabel("Discord Report").setStyle(ButtonStyle.Secondary)
-  );
-
-  const row2 = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId("bug").setLabel("Bug Report").setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId("purchase").setLabel("Purchase Support").setStyle(ButtonStyle.Success),
-    new ButtonBuilder().setCustomId("connection").setLabel("Connection Issue").setStyle(ButtonStyle.Secondary)
-  );
-
-  await panelChannel.send({
-    embeds: [embed],
-    components: [row1, row2]
-  });
+  await registerCommands();
 });
 
 /* ============================= */
 /* TICKET QUESTIONS */
 /* ============================= */
 
-const ticketForms = {
-  ban: [
-    { id: "username", label: "Your Username" },
-    { id: "platform", label: "Platform + Version" },
-    { id: "banid", label: "Ban ID (if known)" },
-    { id: "reason", label: "Why should we unban you?" }
-  ],
-  report: [
-    { id: "ign", label: "Player IGN" },
-    { id: "proof", label: "Proof Link (Video)" },
-    { id: "details", label: "What happened?" }
-  ],
-  media: [
-    { id: "username", label: "Your Username" },
-    { id: "links", label: "Your Video Links" },
-    { id: "requirements", label: "What requirements did you meet?" }
-  ],
-  discord: [
-    { id: "user", label: "Reported User" },
-    { id: "proof", label: "Proof Link" },
-    { id: "details", label: "What happened?" }
-  ],
-  bug: [
-    { id: "bugname", label: "Bug Name" },
-    { id: "video", label: "Video of Bug" },
-    { id: "desc", label: "Describe the bug" }
-  ],
-  purchase: [
-    { id: "username", label: "Your Username" },
-    { id: "product", label: "What did you purchase?" },
-    { id: "issue", label: "What is the issue?" }
-  ],
-  connection: [
-    { id: "username", label: "Your Username" },
-    { id: "error", label: "Error message" },
-    { id: "desc", label: "Describe issue" }
-  ]
+const forms = {
+  ban: ["Your Username", "Platform + Version", "Ban ID", "Why should we unban you?"],
+  report: ["Player IGN", "Proof Link", "What happened?"],
+  media: ["Your Username", "Your Videos", "Requirements met?"],
+  discord: ["Reported User", "Proof Link", "What happened?"],
+  bug: ["Bug Name", "Video Link", "Describe bug"],
+  purchase: ["Your Username", "What did you buy?", "Issue?"],
+  connection: ["Your Username", "Error Message", "Describe issue"]
 };
 
 /* ============================= */
@@ -141,30 +99,59 @@ const ticketForms = {
 
 client.on("interactionCreate", async interaction => {
 
-  /* OPEN TICKET BUTTON */
-  if (interaction.isButton() && ticketForms[interaction.customId]) {
+  /* SLASH PANEL */
+  if (interaction.isChatInputCommand()) {
+    if (interaction.commandName === "panel") {
 
-    if (cooldown.has(interaction.user.id))
-      return interaction.reply({ content: "Slow down.", ephemeral: true });
+      if (interaction.channel.id !== PANEL_CHANNEL_ID)
+        return interaction.reply({ content: "Use this in the panel channel.", ephemeral: true });
+
+      const embed = new EmbedBuilder()
+        .setTitle("🎟 GraveSMP Support")
+        .setDescription("Select a ticket type below.")
+        .setColor("#8B0000");
+
+      if (BANNER_IMAGE) embed.setImage(BANNER_IMAGE);
+
+      const row1 = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId("ban").setLabel("Ban Appeal").setStyle(ButtonStyle.Danger),
+        new ButtonBuilder().setCustomId("report").setLabel("Player Report").setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId("media").setLabel("Media Application").setStyle(ButtonStyle.Success),
+        new ButtonBuilder().setCustomId("discord").setLabel("Discord Report").setStyle(ButtonStyle.Secondary)
+      );
+
+      const row2 = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId("bug").setLabel("Bug Report").setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId("purchase").setLabel("Purchase Support").setStyle(ButtonStyle.Success),
+        new ButtonBuilder().setCustomId("connection").setLabel("Connection Issue").setStyle(ButtonStyle.Secondary)
+      );
+
+      return interaction.reply({ embeds: [embed], components: [row1, row2] });
+    }
+  }
+
+  /* OPEN TICKET */
+  if (interaction.isButton() && forms[interaction.customId]) {
 
     if (openTickets.has(interaction.user.id))
       return interaction.reply({ content: "You already have an open ticket.", ephemeral: true });
 
+    if (cooldown.has(interaction.user.id))
+      return interaction.reply({ content: "Slow down.", ephemeral: true });
+
     cooldown.set(interaction.user.id, true);
     setTimeout(() => cooldown.delete(interaction.user.id), 5000);
 
-    const form = ticketForms[interaction.customId];
-
     const modal = new ModalBuilder()
       .setCustomId(`modal_${interaction.customId}`)
-      .setTitle("Fill Out Ticket Form");
+      .setTitle("Ticket Form");
 
-    form.slice(0, 5).forEach(q => {
+    forms[interaction.customId].forEach((q, i) => {
       modal.addComponents(
         new ActionRowBuilder().addComponents(
           new TextInputBuilder()
-            .setCustomId(q.id)
-            .setLabel(q.label)
+            .setCustomId(`q${i}`)
+            .setLabel(q)
             .setStyle(TextInputStyle.Paragraph)
             .setRequired(true)
         )
@@ -174,12 +161,10 @@ client.on("interactionCreate", async interaction => {
     return interaction.showModal(modal);
   }
 
-  /* MODAL SUBMIT */
+  /* SUBMIT FORM */
   if (interaction.isModalSubmit()) {
 
     const type = interaction.customId.split("_")[1];
-    const form = ticketForms[type];
-
     const number = String(ticketCounter++).padStart(4, "0");
 
     const channel = await interaction.guild.channels.create({
@@ -201,11 +186,8 @@ client.on("interactionCreate", async interaction => {
       .setTitle(`Ticket #${number} | ${type}`)
       .setColor("#8B0000");
 
-    form.forEach(q => {
-      embed.addFields({
-        name: q.label,
-        value: interaction.fields.getTextInputValue(q.id)
-      });
+    forms[type].forEach((q, i) => {
+      embed.addFields({ name: q, value: interaction.fields.getTextInputValue(`q${i}`) });
     });
 
     const controls = new ActionRowBuilder().addComponents(
@@ -235,7 +217,7 @@ client.on("interactionCreate", async interaction => {
   /* CLOSE */
   if (interaction.customId === "close") {
     return interaction.reply({
-      content: "Are you sure?",
+      content: "Are you sure you want to close?",
       components: [
         new ActionRowBuilder().addComponents(
           new ButtonBuilder().setCustomId("confirm_close").setLabel("Confirm").setStyle(ButtonStyle.Danger)
@@ -249,8 +231,8 @@ client.on("interactionCreate", async interaction => {
     const logChannel = await client.channels.fetch(LOG_CHANNEL_ID);
     await logChannel.send({ files: [transcript] });
 
-    const ownerId = interaction.channel.topic;
-    openTickets.delete(ownerId);
+    const owner = interaction.channel.topic;
+    openTickets.delete(owner);
 
     return interaction.channel.delete();
   }
