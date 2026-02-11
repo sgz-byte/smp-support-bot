@@ -55,8 +55,9 @@ const cooldown = new Collection();
 /* PANEL CREATION */
 /* ============================= */
 
-client.once("ready", async () => {
+client.once("ready", () => {
   console.log(`${client.user.tag} online`);
+});
 
   const panelChannel = await client.channels.fetch(PANEL_CHANNEL_ID);
 
