@@ -13,7 +13,8 @@ const {
   REST,
   Routes,
   SlashCommandBuilder,
-  Collection
+  Collection,
+  StringSelectMenuBuilder
 } = require("discord.js");
 
 const transcripts = require("discord-html-transcripts");
@@ -39,6 +40,8 @@ const LOG_CHANNEL_ID = "1471050244442558589";
 const LEVELS_CHANNEL_ID = "1471278932581023968";
 const COMMANDS_CHANNEL_ID = "1471279015959597127";
 
+const ROLES_CHANNEL_ID = "1471287988448268411";
+
 const STAFF_ROLE_1 = "1454488584869646368";
 const STAFF_ROLE_2 = "1454449956139302945";
 
@@ -57,13 +60,17 @@ const client = new Client({
 const openTickets = new Collection();
 let ticketCounter = 1;
 
-/* ================= SLASH COMMAND ================= */
+/* ================= SLASH COMMANDS ================= */
 
 async function registerCommands() {
   const commands = [
     new SlashCommandBuilder()
       .setName("panel")
-      .setDescription("Send the ticket panel")
+      .setDescription("Send the ticket panel"),
+
+    new SlashCommandBuilder()
+      .setName("roles")
+      .setDescription("Send the self role panel")
   ].map(cmd => cmd.toJSON());
 
   const rest = new REST({ version: "10" }).setToken(TOKEN);
@@ -90,7 +97,11 @@ const forms = {
 
 client.on("interactionCreate", async interaction => {
 
+  /* ===== SLASH COMMANDS ===== */
+
   if (interaction.isChatInputCommand()) {
+
+    /* PANEL */
     if (interaction.commandName === "panel") {
 
       if (interaction.channel.id !== PANEL_CHANNEL_ID)
@@ -111,7 +122,82 @@ client.on("interactionCreate", async interaction => {
 
       return interaction.reply({ embeds: [embed], components: [row] });
     }
+
+    /* ROLES */
+    if (interaction.commandName === "roles") {
+
+      if (interaction.channel.id !== ROLES_CHANNEL_ID)
+        return interaction.reply({ content: "Use this in the roles channel.", ephemeral: true });
+
+      const embed = new EmbedBuilder()
+        .setColor("#8B0000")
+        .setTitle("🎭 Choose Your Roles")
+        .setDescription(
+          "Select your preferences below.\n\n" +
+          "• Region, Platform & Age = 1 choice\n" +
+          "• Ping roles = multiple allowed"
+        );
+
+      const regionMenu = new StringSelectMenuBuilder()
+        .setCustomId("region_select")
+        .setPlaceholder("Select Your Region")
+        .addOptions([
+          { label: "Europe", value: "1471295797260976249" },
+          { label: "North America", value: "1471295844836970646" },
+          { label: "South America", value: "1471295885278314710" },
+          { label: "Asia", value: "1471295939590225970" },
+          { label: "Africa", value: "1471295982376325257" },
+          { label: "Oceania", value: "1471296039012139222" }
+        ]);
+
+      const platformMenu = new StringSelectMenuBuilder()
+        .setCustomId("platform_select")
+        .setPlaceholder("Select Your Platform")
+        .addOptions([
+          { label: "PC", value: "1471288525314854912" },
+          { label: "Xbox", value: "1471288589450084514" },
+          { label: "PlayStation", value: "1471288632135651562" },
+          { label: "Mobile", value: "1471288673126449315" }
+        ]);
+
+      const ageMenu = new StringSelectMenuBuilder()
+        .setCustomId("age_select")
+        .setPlaceholder("Select Your Age Group")
+        .addOptions([
+          { label: "-13", value: "1471296097874870418" },
+          { label: "13-14", value: "1471296149242515568" },
+          { label: "15-17", value: "1471296183908434061" },
+          { label: "18-20", value: "1471296230620663950" },
+          { label: "21-24", value: "1471296282038505737" },
+          { label: "25+", value: "1471296335746699336" }
+        ]);
+
+      const pingMenu = new StringSelectMenuBuilder()
+        .setCustomId("ping_select")
+        .setPlaceholder("Select Ping Roles")
+        .setMinValues(0)
+        .setMaxValues(5)
+        .addOptions([
+          { label: "News", value: "1471296388104065237" },
+          { label: "Uploads", value: "1471296438909669549" },
+          { label: "Events", value: "1471296477581021336" },
+          { label: "Polls", value: "1471296524255363135" },
+          { label: "Updates", value: "1471296570271072266" }
+        ]);
+
+      return interaction.reply({
+        embeds: [embed],
+        components: [
+          new ActionRowBuilder().addComponents(regionMenu),
+          new ActionRowBuilder().addComponents(platformMenu),
+          new ActionRowBuilder().addComponents(ageMenu),
+          new ActionRowBuilder().addComponents(pingMenu)
+        ]
+      });
+    }
   }
+
+  /* ===== TICKET BUTTONS ===== */
 
   if (interaction.isButton() && forms[interaction.customId]) {
 
@@ -136,6 +222,8 @@ client.on("interactionCreate", async interaction => {
 
     return interaction.showModal(modal);
   }
+
+  /* ===== MODAL SUBMIT ===== */
 
   if (interaction.isModalSubmit()) {
 
@@ -181,22 +269,53 @@ client.on("interactionCreate", async interaction => {
     return interaction.reply({ content: `Ticket created: ${channel}`, ephemeral: true });
   }
 
-  if (interaction.customId === "close") {
+  /* ===== ROLE HANDLER ===== */
 
+  if (interaction.isStringSelectMenu()) {
+
+    const member = interaction.member;
+    const selected = interaction.values;
+
+    const regionRoles = ["1471295797260976249","1471295844836970646","1471295885278314710","1471295939590225970","1471295982376325257","1471296039012139222"];
+    const platformRoles = ["1471288525314854912","1471288589450084514","1471288632135651562","1471288673126449315"];
+    const ageRoles = ["1471296097874870418","1471296149242515568","1471296183908434061","1471296230620663950","1471296282038505737","1471296335746699336"];
+    const pingRoles = ["1471296388104065237","1471296438909669549","1471296477581021336","1471296524255363135","1471296570271072266"];
+
+    if (interaction.customId === "region_select") {
+      await member.roles.remove(regionRoles);
+      await member.roles.add(selected[0]);
+    }
+
+    if (interaction.customId === "platform_select") {
+      await member.roles.remove(platformRoles);
+      await member.roles.add(selected[0]);
+    }
+
+    if (interaction.customId === "age_select") {
+      await member.roles.remove(ageRoles);
+      await member.roles.add(selected[0]);
+    }
+
+    if (interaction.customId === "ping_select") {
+      await member.roles.remove(pingRoles);
+      await member.roles.add(selected);
+    }
+
+    return interaction.reply({ content: "Roles updated ✅", ephemeral: true });
+  }
+
+  /* ===== CLOSE TICKET ===== */
+
+  if (interaction.customId === "close") {
     const transcript = await transcripts.createTranscript(interaction.channel);
     const logChannel = await client.channels.fetch(LOG_CHANNEL_ID);
-
-    await logChannel.send({
-      content: `Ticket closed by ${interaction.user}`,
-      files: [transcript]
-    });
-
+    await logChannel.send({ files: [transcript] });
     openTickets.delete(interaction.channel.topic);
     return interaction.channel.delete();
   }
 });
 
-/* ================= GRAVE LEVEL SYSTEM V2 ================= */
+/* ================= LEVEL SYSTEM ================= */
 
 const LEVELS_FILE = "./levels.json";
 
@@ -228,13 +347,6 @@ const rankRoles = [
 const xpCooldown = new Set();
 const lastMessage = new Map();
 
-function createProgressBar(current, needed) {
-  const percent = current / needed;
-  const filled = Math.round(percent * 20);
-  const empty = 20 - filled;
-  return "█".repeat(filled) + "░".repeat(empty);
-}
-
 function calculateXP(message) {
   const length = message.content.length;
   if (length < 6) return 0;
@@ -250,37 +362,27 @@ client.on("messageCreate", async message => {
   if (message.channel.id === COMMANDS_CHANNEL_ID) {
 
     if (message.content === "!rank") {
-
       const data = levels[message.author.id];
       if (!data) return message.reply("You have no XP yet.");
-
-      const needed = xpNeeded(data.level);
-      const bar = createProgressBar(data.xp, needed);
-      const percent = Math.floor((data.xp / needed) * 100);
-
-      return message.reply({
-        embeds: [
-          new EmbedBuilder()
-            .setColor("#8B0000")
-            .setTitle("💀 Grave Rank")
-            .setDescription(
-              `Level: ${data.level}\n\nXP: ${data.xp}/${needed}\n[${bar}] ${percent}%`
-            )
-        ]
-      });
+      return message.reply(`Level: ${data.level} | XP: ${data.xp}/${xpNeeded(data.level)}`);
     }
 
     if (message.content === "!leaderboard") {
+      const entries = Object.entries(levels);
+      if (!entries.length)
+        return message.reply("No leaderboard data yet.");
 
-      const sorted = Object.entries(levels)
-        .sort((a, b) => b[1].level - a[1].level || b[1].xp - a[1].xp)
+      const sorted = entries
+        .sort((a, b) =>
+          b[1].level - a[1].level ||
+          b[1].xp - a[1].xp
+        )
         .slice(0, 10);
 
       let desc = "";
 
       for (let i = 0; i < sorted.length; i++) {
-        const user = await client.users.fetch(sorted[i][0]);
-        desc += `**${i + 1}.** ${user.username} — Level ${sorted[i][1].level}\n`;
+        desc += `**${i + 1}.** <@${sorted[i][0]}> — Level ${sorted[i][1].level}\n`;
       }
 
       return message.channel.send({
@@ -298,7 +400,6 @@ client.on("messageCreate", async message => {
 
   if (/^\p{Emoji}+$/u.test(message.content)) return;
   if (lastMessage.get(message.author.id) === message.content) return;
-
   lastMessage.set(message.author.id, message.content);
 
   if (xpCooldown.has(message.author.id)) return;
@@ -321,7 +422,6 @@ client.on("messageCreate", async message => {
     levels[message.author.id].xp = 0;
 
     const newLevel = levels[message.author.id].level;
-
     const levelChannel = await client.channels.fetch(LEVELS_CHANNEL_ID);
 
     let unlockedRank = null;
@@ -341,7 +441,7 @@ client.on("messageCreate", async message => {
       .setTitle("💀 A Soul Has Risen")
       .setDescription(
         `${message.author} reached **Level ${newLevel}**` +
-        (unlockedRank ? `\n\nUnlocked: **${unlockedRank}**` : "")
+        (unlockedRank ? `\nUnlocked: **${unlockedRank}**` : "")
       );
 
     levelChannel.send({ embeds: [embed] });
