@@ -305,4 +305,16 @@ client.on("interactionCreate", async interaction => {
 
 });
 
+const express = require('express');
+const app = express();
+
+// Use Render's assigned port, or default 3000 for local testing
+const PORT = process.env.PORT || 3000;
+
+// Minimal route so Render sees the service is running
+app.get('/', (req, res) => res.send('GraveSMP Bot is online!'));
+
+// Start web server
+app.listen(PORT, () => console.log(`Web server listening on port ${PORT}`));
+
 client.login(TOKEN);
