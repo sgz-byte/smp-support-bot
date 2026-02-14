@@ -1,8 +1,9 @@
+require("dotenv").config();
+
 const {
   Client,
   GatewayIntentBits,
   Partials,
-  Collection,
   EmbedBuilder,
   ActionRowBuilder,
   ButtonBuilder,
@@ -29,13 +30,16 @@ const client = new Client({
   partials: [Partials.Channel]
 });
 
-const TOKEN = "YOUR_BOT_TOKEN";
-const CATEGORY_ID = "YOUR_TICKET_CATEGORY_ID";
-const LOG_CHANNEL_ID = "YOUR_LOG_CHANNEL_ID";
-const COMMAND_CHANNEL_ID = "1471287988448268411";
+// ---------------- ENV ----------------
 
-const STAFF_ROLE_1 = "YOUR_STAFF_ROLE_ID";
-const STAFF_ROLE_2 = "YOUR_STAFF_ROLE_ID_2";
+const TOKEN = process.env.TOKEN;
+const CATEGORY_ID = process.env.CATEGORY_ID;
+const LOG_CHANNEL_ID = process.env.LOG_CHANNEL_ID;
+const STAFF_ROLE_1 = process.env.STAFF_ROLE_1;
+const STAFF_ROLE_2 = process.env.STAFF_ROLE_2;
+const COMMAND_CHANNEL_ID = process.env.COMMAND_CHANNEL_ID;
+
+// ---------------- XP SYSTEM ----------------
 
 let xpData = {};
 if (fs.existsSync("./xp.json")) {
@@ -63,9 +67,12 @@ client.once("ready", async () => {
   await client.application.commands.set(commands);
 });
 
+// ---------------- MESSAGE XP ----------------
+
 client.on("messageCreate", async message => {
   if (message.author.bot || !message.guild) return;
 
+  // Auto purge command channel
   if (message.channel.id === COMMAND_CHANNEL_ID) {
     setTimeout(() => {
       message.delete().catch(() => {});
@@ -76,7 +83,7 @@ client.on("messageCreate", async message => {
     xpData[message.author.id] = { xp: 0, level: 0 };
   }
 
-  const xpGain = Math.floor(Math.random() * 8) + 5; // 5–12 xp
+  const xpGain = Math.floor(Math.random() * 6) + 5; // 5–10 XP
   xpData[message.author.id].xp += xpGain;
 
   const needed = xpNeeded(xpData[message.author.id].level);
@@ -85,15 +92,19 @@ client.on("messageCreate", async message => {
     xpData[message.author.id].xp = 0;
     xpData[message.author.id].level += 1;
 
-    message.channel.send(`${message.author} leveled up to **Level ${xpData[message.author.id].level}** 🎉`);
+    message.channel.send(
+      `${message.author} leveled up to **Level ${xpData[message.author.id].level}** 🎉`
+    );
   }
 
   saveXP();
 });
 
+// ---------------- INTERACTIONS ----------------
+
 client.on("interactionCreate", async interaction => {
 
-  // ---------------- SLASH COMMANDS ----------------
+  // ---------- SLASH COMMANDS ----------
 
   if (interaction.isChatInputCommand()) {
 
@@ -128,7 +139,7 @@ client.on("interactionCreate", async interaction => {
           new EmbedBuilder()
             .setColor("#8B0000")
             .setTitle("Leaderboard")
-            .setDescription(desc || "No data")
+            .setDescription(desc || "No data yet.")
         ]
       });
     }
@@ -183,18 +194,17 @@ client.on("interactionCreate", async interaction => {
       const row = new ActionRowBuilder().addComponents(regionMenu);
 
       return interaction.reply({
-        content: "Choose your roles:",
+        content: "Choose your region:",
         components: [row]
       });
     }
   }
 
-  // ---------------- SELECT MENUS ----------------
+  // ---------- SELECT MENU ----------
 
   if (interaction.isStringSelectMenu()) {
     const roleId = interaction.values[0];
     const role = interaction.guild.roles.cache.get(roleId);
-
     if (!role) return;
 
     await interaction.member.roles.add(role);
@@ -205,7 +215,7 @@ client.on("interactionCreate", async interaction => {
     });
   }
 
-  // ---------------- BUTTONS ----------------
+  // ---------- BUTTONS ----------
 
   if (interaction.isButton()) {
 
@@ -244,7 +254,7 @@ client.on("interactionCreate", async interaction => {
       const logChannel = await client.channels.fetch(LOG_CHANNEL_ID);
 
       await logChannel.send({
-        content: `Ticket closed by ${interaction.user}`,
+        content: `Ticket closed by ${interaction.user.tag}`,
         files: [transcript]
       });
 
@@ -252,7 +262,7 @@ client.on("interactionCreate", async interaction => {
     }
   }
 
-  // ---------------- MODAL ----------------
+  // ---------- MODAL ----------
 
   if (interaction.isModalSubmit()) {
 
@@ -294,6 +304,7 @@ client.on("interactionCreate", async interaction => {
       ephemeral: true
     });
   }
+
 });
 
 client.login(TOKEN);
