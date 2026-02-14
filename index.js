@@ -148,7 +148,7 @@ client.on("interactionCreate", async interaction => {
         .setColor("#8B0000")
         .setTitle("GraveSMP Support")
         .setDescription("Select a ticket type below.")
-        .setImage("https://i.imgur.com/Z6aZ8vM.png");
+        .setImage("EC5EE755-447D-41DA-B199-868DE5A1EB65.png");
 
       const row1 = new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId("ban").setLabel("Ban Appeal").setStyle(ButtonStyle.Danger),
