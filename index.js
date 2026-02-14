@@ -17,6 +17,7 @@ const {
 
 const transcripts = require("discord-html-transcripts");
 const fs = require("fs");
+const express = require("express");
 
 const client = new Client({
   intents: [
@@ -29,16 +30,15 @@ const client = new Client({
 });
 
 // ---------------- ENV ----------------
-
 const TOKEN = process.env.TOKEN;
 const CATEGORY_ID = process.env.CATEGORY_ID;
 const LOG_CHANNEL_ID = process.env.LOG_CHANNEL_ID;
 const STAFF_ROLE_1 = process.env.STAFF_ROLE_1;
 const STAFF_ROLE_2 = process.env.STAFF_ROLE_2;
 const COMMAND_CHANNEL_ID = process.env.COMMAND_CHANNEL_ID;
+const GUILD_ID = process.env.GUILD_ID; // <--- Add your server ID here
 
 // ---------------- XP SYSTEM ----------------
-
 let xpData = {};
 if (fs.existsSync("./xp.json")) {
   xpData = JSON.parse(fs.readFileSync("./xp.json"));
@@ -52,6 +52,7 @@ function xpNeeded(level) {
   return 100 + level * 75;
 }
 
+// ---------------- READY ----------------
 client.once("ready", async () => {
   console.log(`Logged in as ${client.user.tag}`);
 
@@ -62,11 +63,24 @@ client.once("ready", async () => {
     new SlashCommandBuilder().setName("selfroles").setDescription("Send self roles panel")
   ];
 
-  await client.application.commands.set(commands);
+  // Register commands per guild for instant availability
+  const guild = client.guilds.cache.get(GUILD_ID);
+  if (guild) {
+    await guild.commands.set(commands);
+    console.log("Slash commands registered in guild:", GUILD_ID);
+  } else {
+    console.warn("Guild not found! Make sure GUILD_ID is correct and bot is in server.");
+  }
+
+  // ---------------- Web server for Render ----------------
+  const app = express();
+  const PORT = process.env.PORT || 3000;
+
+  app.get("/", (req, res) => res.send("GraveSMP Bot is online!"));
+  app.listen(PORT, () => console.log(`Web server listening on port ${PORT}`));
 });
 
 // ---------------- MESSAGE XP ----------------
-
 client.on("messageCreate", async message => {
   if (message.author.bot || !message.guild) return;
 
@@ -99,16 +113,13 @@ client.on("messageCreate", async message => {
 });
 
 // ---------------- INTERACTIONS ----------------
-
 client.on("interactionCreate", async interaction => {
 
   // ---------- SLASH COMMANDS ----------
-
   if (interaction.isChatInputCommand()) {
 
     if (interaction.commandName === "rank") {
       const user = xpData[interaction.user.id] || { xp: 0, level: 0 };
-
       return interaction.reply({
         embeds: [
           new EmbedBuilder()
@@ -148,7 +159,7 @@ client.on("interactionCreate", async interaction => {
         .setColor("#8B0000")
         .setTitle("GraveSMP Support")
         .setDescription("Select a ticket type below.")
-        .setImage("EC5EE755-447D-41DA-B199-868DE5A1EB65.png");
+        .setImage("https://i.imgur.com/Z6aZ8vM.png");
 
       const row1 = new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId("ban").setLabel("Ban Appeal").setStyle(ButtonStyle.Danger),
@@ -199,14 +210,12 @@ client.on("interactionCreate", async interaction => {
   }
 
   // ---------- SELECT MENU ----------
-
   if (interaction.isStringSelectMenu()) {
     const roleId = interaction.values[0];
     const role = interaction.guild.roles.cache.get(roleId);
     if (!role) return;
 
     await interaction.member.roles.add(role);
-
     return interaction.reply({
       content: `Role ${role.name} added.`,
       ephemeral: true
@@ -214,7 +223,6 @@ client.on("interactionCreate", async interaction => {
   }
 
   // ---------- BUTTONS ----------
-
   if (interaction.isButton()) {
 
     const ticketTypes = {
@@ -261,7 +269,6 @@ client.on("interactionCreate", async interaction => {
   }
 
   // ---------- MODAL ----------
-
   if (interaction.isModalSubmit()) {
 
     const type = interaction.customId.replace("ticket_modal_", "");
@@ -304,17 +311,5 @@ client.on("interactionCreate", async interaction => {
   }
 
 });
-
-const express = require('express');
-const app = express();
-
-// Use Render's assigned port, or default 3000 for local testing
-const PORT = process.env.PORT || 3000;
-
-// Minimal route so Render sees the service is running
-app.get('/', (req, res) => res.send('GraveSMP Bot is online!'));
-
-// Start web server
-app.listen(PORT, () => console.log(`Web server listening on port ${PORT}`));
 
 client.login(TOKEN);
