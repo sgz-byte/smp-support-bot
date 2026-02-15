@@ -36,7 +36,7 @@ const LOG_CHANNEL_ID = process.env.LOG_CHANNEL_ID;
 const STAFF_ROLE_1 = process.env.STAFF_ROLE_1;
 const STAFF_ROLE_2 = process.env.STAFF_ROLE_2;
 const COMMAND_CHANNEL_ID = process.env.COMMAND_CHANNEL_ID;
-const GUILD_ID = process.env.GUILD_ID; // <--- Add your server ID here
+const GUILD_ID = process.env.GUILD_ID; // your server ID
 
 // ---------------- XP SYSTEM ----------------
 let xpData = {};
@@ -84,18 +84,15 @@ client.once("ready", async () => {
 client.on("messageCreate", async message => {
   if (message.author.bot || !message.guild) return;
 
-  // Auto purge command channel
   if (message.channel.id === COMMAND_CHANNEL_ID) {
-    setTimeout(() => {
-      message.delete().catch(() => {});
-    }, 5000);
+    setTimeout(() => message.delete().catch(() => {}), 5000);
   }
 
   if (!xpData[message.author.id]) {
     xpData[message.author.id] = { xp: 0, level: 0 };
   }
 
-  const xpGain = Math.floor(Math.random() * 6) + 5; // 5–10 XP
+  const xpGain = Math.floor(Math.random() * 6) + 5;
   xpData[message.author.id].xp += xpGain;
 
   const needed = xpNeeded(xpData[message.author.id].level);
@@ -159,7 +156,7 @@ client.on("interactionCreate", async interaction => {
         .setColor("#8B0000")
         .setTitle("GraveSMP Support")
         .setDescription("Select a ticket type below.")
-        .setImage("https://i.imgur.com/Z6aZ8vM.png");
+        .setImage("EC5EE755-447D-41DA-B199-868DE5A1EB65.png");
 
       const row1 = new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId("ban").setLabel("Ban Appeal").setStyle(ButtonStyle.Danger),
@@ -188,6 +185,7 @@ client.on("interactionCreate", async interaction => {
 
     if (interaction.commandName === "selfroles") {
 
+      // ----- Region -----
       const regionMenu = new StringSelectMenuBuilder()
         .setCustomId("region_roles")
         .setPlaceholder("Select your region")
@@ -200,24 +198,87 @@ client.on("interactionCreate", async interaction => {
           { label: "Oceania", value: "1471296039012139222" }
         ]);
 
-      const row = new ActionRowBuilder().addComponents(regionMenu);
+      // ----- Platform -----
+      const platformMenu = new StringSelectMenuBuilder()
+        .setCustomId("platform_roles")
+        .setPlaceholder("Select your platform")
+        .addOptions([
+          { label: "PC", value: "1471288525314854912" },
+          { label: "Xbox", value: "1471288589450084514" },
+          { label: "PlayStation", value: "1471288632135651562" },
+          { label: "Mobile", value: "1471288673126449315" }
+        ]);
+
+      // ----- Age -----
+      const ageMenu = new StringSelectMenuBuilder()
+        .setCustomId("age_roles")
+        .setPlaceholder("Select your age")
+        .addOptions([
+          { label: "-13", value: "1471296097874870418" },
+          { label: "13-14", value: "1471296149242515568" },
+          { label: "15-17", value: "1471296183908434061" },
+          { label: "18-20", value: "1471296230620663950" },
+          { label: "21-24", value: "1471296282038505737" },
+          { label: "25+", value: "1471296335746699336" }
+        ]);
+
+      // ----- Ping Roles (multi-select) -----
+      const pingMenu = new StringSelectMenuBuilder()
+        .setCustomId("ping_roles")
+        .setPlaceholder("Select your pings")
+        .setMinValues(0)
+        .setMaxValues(5)
+        .addOptions([
+          { label: "News", value: "1471296388104065237" },
+          { label: "Uploads", value: "1471296438909669549" },
+          { label: "Events", value: "1471296477581021336" },
+          { label: "Polls", value: "1471296524255363135" },
+          { label: "Updates", value: "1471296570271072266" }
+        ]);
+
+      const rows = [
+        new ActionRowBuilder().addComponents(regionMenu),
+        new ActionRowBuilder().addComponents(platformMenu),
+        new ActionRowBuilder().addComponents(ageMenu),
+        new ActionRowBuilder().addComponents(pingMenu)
+      ];
 
       return interaction.reply({
-        content: "Choose your region:",
-        components: [row]
+        content: "Select your roles:",
+        components: rows,
+        ephemeral: true
       });
     }
   }
 
   // ---------- SELECT MENU ----------
   if (interaction.isStringSelectMenu()) {
-    const roleId = interaction.values[0];
-    const role = interaction.guild.roles.cache.get(roleId);
-    if (!role) return;
+    const category = interaction.customId;
+    const selectedRoles = interaction.values;
 
-    await interaction.member.roles.add(role);
+    // Map of single-choice categories
+    const singleChoice = {
+      region_roles: ["REGION_EU_ROLEID","REGION_NA_ROLEID","REGION_SA_ROLEID","REGION_ASIA_ROLEID","REGION_AFR_ROLEID","REGION_OC_ROLEID"],
+      platform_roles: ["PLATFORM_PC_ROLEID","PLATFORM_XBOX_ROLEID","PLATFORM_PS_ROLEID","PLATFORM_MOBILE_ROLEID"],
+      age_roles: ["AGE_UNDER13_ROLEID","AGE_13_14_ROLEID","AGE_15_17_ROLEID","AGE_18_20_ROLEID","AGE_21_24_ROLEID","AGE_25PLUS_ROLEID"]
+    };
+
+    // Remove previous roles if single-choice
+    if (singleChoice[category]) {
+      for (const r of singleChoice[category]) {
+        if (interaction.member.roles.cache.has(r)) {
+          await interaction.member.roles.remove(r).catch(() => {});
+        }
+      }
+    }
+
+    // Add selected role(s)
+    for (const r of selectedRoles) {
+      await interaction.member.roles.add(r).catch(() => {});
+    }
+
     return interaction.reply({
-      content: `Role ${role.name} added.`,
+      content: "Your roles have been updated!",
       ephemeral: true
     });
   }
