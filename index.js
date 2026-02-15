@@ -254,10 +254,14 @@ client.on("interactionCreate", async interaction => {
 
     saveData();
 
-    const fields = interaction.fields.fields.map(f => ({
-      name: formatField(f[1].customId),
-      value: f[1].value
-    }));
+const fields = [];
+
+for (const field of interaction.fields.fields.values()) {
+  fields.push({
+    name: formatField(field.customId),
+    value: field.value || "Not provided"
+  });
+}
 
     const embed = new EmbedBuilder()
       .setColor("#8B0000")
