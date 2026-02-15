@@ -70,7 +70,7 @@ client.on("interactionCreate", async interaction => {
 
       const row3 = new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId("purchase").setLabel("Purchase Support").setStyle(ButtonStyle.Success),
-        new ButtonBuilder().setCustomId("suggestion").setLabel("Suggestion").setStyle(ButtonStyle.Secondary)
+        new ButtonBuilder().setCustomId("connection issue").setLabel("Suggestion").setStyle(ButtonStyle.Secondary)
       );
 
       return interaction.reply({ embeds: [embed], components: [row1, row2, row3] });
@@ -180,11 +180,11 @@ client.on("interactionCreate", async interaction => {
       );
     }
 
-    if (type === "suggestion") {
+    if (type === "connection issue") {
       inputs.push(
-        addInput("title", "Suggestion Title"),
-        addInput("desc", "Full description", TextInputStyle.Paragraph),
-        addInput("benefit", "How does this improve the server?"),
+        addInput("ign", "Minecraft IGN"),
+        addInput("desc", "Full description of the issue", TextInputStyle.Paragraph),
+        addInput("platform", "what do you play on?"),
         addInput("examples", "Examples (optional)", TextInputStyle.Short, false),
         addInput("extra", "Anything else?", TextInputStyle.Short, false)
       );
