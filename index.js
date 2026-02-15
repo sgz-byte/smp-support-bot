@@ -16,139 +16,39 @@ const {
 } = require("discord.js");
 
 const transcripts = require("discord-html-transcripts");
-const fs = require("fs");
-const express = require("express");
 
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent,
-    GatewayIntentBits.GuildMembers
+    GatewayIntentBits.GuildMembers,
+    GatewayIntentBits.MessageContent
   ],
   partials: [Partials.Channel]
 });
 
-// ---------------- ENV ----------------
 const TOKEN = process.env.TOKEN;
-const CATEGORY_ID = process.env.CATEGORY_ID;
+const TICKET_CATEGORY_ID = process.env.TICKET_CATEGORY_ID;
 const LOG_CHANNEL_ID = process.env.LOG_CHANNEL_ID;
-const STAFF_ROLE_1 = process.env.STAFF_ROLE_1;
-const STAFF_ROLE_2 = process.env.STAFF_ROLE_2;
-const COMMAND_CHANNEL_ID = process.env.COMMAND_CHANNEL_ID;
-const GUILD_ID = process.env.GUILD_ID; // your server ID
+const STAFF_ROLE_ID = process.env.STAFF_ROLE_ID;
+const SELFROLE_CHANNEL_ID = process.env.SELFROLE_CHANNEL_ID;
 
-// ---------------- XP SYSTEM ----------------
-let xpData = {};
-if (fs.existsSync("./xp.json")) {
-  xpData = JSON.parse(fs.readFileSync("./xp.json"));
-}
-
-function saveXP() {
-  fs.writeFileSync("./xp.json", JSON.stringify(xpData, null, 2));
-}
-
-function xpNeeded(level) {
-  return 100 + level * 75;
-}
-
-// ---------------- READY ----------------
-client.once("ready", async () => {
+client.once("clientReady", async () => {
   console.log(`Logged in as ${client.user.tag}`);
 
   const commands = [
-    new SlashCommandBuilder().setName("rank").setDescription("Check your rank"),
-    new SlashCommandBuilder().setName("leaderboard").setDescription("View top 10 leaderboard"),
     new SlashCommandBuilder().setName("panel").setDescription("Send ticket panel"),
-    new SlashCommandBuilder().setName("selfroles").setDescription("Send self roles panel")
+    new SlashCommandBuilder().setName("selfroles").setDescription("Send self role panel")
   ];
 
-  // Register commands per guild for instant availability
-  const guild = client.guilds.cache.get(GUILD_ID);
-  if (guild) {
-    await guild.commands.set(commands);
-    console.log("Slash commands registered in guild:", GUILD_ID);
-  } else {
-    console.warn("Guild not found! Make sure GUILD_ID is correct and bot is in server.");
-  }
-
-  // ---------------- Web server for Render ----------------
-  const app = express();
-  const PORT = process.env.PORT || 3000;
-
-  app.get("/", (req, res) => res.send("GraveSMP Bot is online!"));
-  app.listen(PORT, () => console.log(`Web server listening on port ${PORT}`));
+  await client.application.commands.set(commands);
 });
 
-// ---------------- MESSAGE XP ----------------
-client.on("messageCreate", async message => {
-  if (message.author.bot || !message.guild) return;
-
-  if (message.channel.id === COMMAND_CHANNEL_ID) {
-    setTimeout(() => message.delete().catch(() => {}), 5000);
-  }
-
-  if (!xpData[message.author.id]) {
-    xpData[message.author.id] = { xp: 0, level: 0 };
-  }
-
-  const xpGain = Math.floor(Math.random() * 6) + 5;
-  xpData[message.author.id].xp += xpGain;
-
-  const needed = xpNeeded(xpData[message.author.id].level);
-
-  if (xpData[message.author.id].xp >= needed) {
-    xpData[message.author.id].xp = 0;
-    xpData[message.author.id].level += 1;
-
-    message.channel.send(
-      `${message.author} leveled up to **Level ${xpData[message.author.id].level}** 🎉`
-    );
-  }
-
-  saveXP();
-});
-
-// ---------------- INTERACTIONS ----------------
 client.on("interactionCreate", async interaction => {
 
-  // ---------- SLASH COMMANDS ----------
+  // ---------------- SLASH COMMANDS ----------------
+
   if (interaction.isChatInputCommand()) {
-
-    if (interaction.commandName === "rank") {
-      const user = xpData[interaction.user.id] || { xp: 0, level: 0 };
-      return interaction.reply({
-        embeds: [
-          new EmbedBuilder()
-            .setColor("#8B0000")
-            .setTitle(`${interaction.user.username}'s Rank`)
-            .addFields(
-              { name: "Level", value: user.level.toString(), inline: true },
-              { name: "XP", value: user.xp.toString(), inline: true }
-            )
-        ],
-        ephemeral: true
-      });
-    }
-
-    if (interaction.commandName === "leaderboard") {
-      const sorted = Object.entries(xpData)
-        .sort((a, b) => b[1].level - a[1].level)
-        .slice(0, 10);
-
-      let desc = sorted
-        .map((u, i) => `**${i + 1}.** <@${u[0]}> — Level ${u[1].level}`)
-        .join("\n");
-
-      return interaction.reply({
-        embeds: [
-          new EmbedBuilder()
-            .setColor("#8B0000")
-            .setTitle("Leaderboard")
-            .setDescription(desc || "No data yet.")
-        ]
-      });
-    }
 
     if (interaction.commandName === "panel") {
 
@@ -156,7 +56,7 @@ client.on("interactionCreate", async interaction => {
         .setColor("#8B0000")
         .setTitle("GraveSMP Support")
         .setDescription("Select a ticket type below.")
-        .setImage("EC5EE755-447D-41DA-B199-868DE5A1EB65.png");
+        .setImage("https://i.imgur.com/Z6aZ8vM.png");
 
       const row1 = new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId("ban").setLabel("Ban Appeal").setStyle(ButtonStyle.Danger),
@@ -164,29 +64,21 @@ client.on("interactionCreate", async interaction => {
       );
 
       const row2 = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId("media").setLabel("Media Application").setStyle(ButtonStyle.Success),
-        new ButtonBuilder().setCustomId("discord").setLabel("Discord Report").setStyle(ButtonStyle.Secondary)
+        new ButtonBuilder().setCustomId("bug").setLabel("Bug Report").setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId("media").setLabel("Media Application").setStyle(ButtonStyle.Success)
       );
 
       const row3 = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId("bug").setLabel("Bug Report").setStyle(ButtonStyle.Primary),
-        new ButtonBuilder().setCustomId("purchase").setLabel("Purchase Support").setStyle(ButtonStyle.Success)
+        new ButtonBuilder().setCustomId("purchase").setLabel("Purchase Support").setStyle(ButtonStyle.Success),
+        new ButtonBuilder().setCustomId("suggestion").setLabel("Suggestion").setStyle(ButtonStyle.Secondary)
       );
 
-      const row4 = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId("connection").setLabel("Connection Issue").setStyle(ButtonStyle.Secondary)
-      );
-
-      return interaction.reply({
-        embeds: [embed],
-        components: [row1, row2, row3, row4]
-      });
+      return interaction.reply({ embeds: [embed], components: [row1, row2, row3] });
     }
 
     if (interaction.commandName === "selfroles") {
 
-      // ----- Region -----
-      const regionMenu = new StringSelectMenuBuilder()
+      const menu = new StringSelectMenuBuilder()
         .setCustomId("region_roles")
         .setPlaceholder("Select your region")
         .addOptions([
@@ -198,154 +90,138 @@ client.on("interactionCreate", async interaction => {
           { label: "Oceania", value: "1471296039012139222" }
         ]);
 
-      // ----- Platform -----
-      const platformMenu = new StringSelectMenuBuilder()
-        .setCustomId("platform_roles")
-        .setPlaceholder("Select your platform")
-        .addOptions([
-          { label: "PC", value: "1471288525314854912" },
-          { label: "Xbox", value: "1471288589450084514" },
-          { label: "PlayStation", value: "1471288632135651562" },
-          { label: "Mobile", value: "1471288673126449315" }
-        ]);
+      const row = new ActionRowBuilder().addComponents(menu);
 
-      // ----- Age -----
-      const ageMenu = new StringSelectMenuBuilder()
-        .setCustomId("age_roles")
-        .setPlaceholder("Select your age")
-        .addOptions([
-          { label: "-13", value: "1471296097874870418" },
-          { label: "13-14", value: "1471296149242515568" },
-          { label: "15-17", value: "1471296183908434061" },
-          { label: "18-20", value: "1471296230620663950" },
-          { label: "21-24", value: "1471296282038505737" },
-          { label: "25+", value: "1471296335746699336" }
-        ]);
-
-      // ----- Ping Roles (multi-select) -----
-      const pingMenu = new StringSelectMenuBuilder()
-        .setCustomId("ping_roles")
-        .setPlaceholder("Select your pings")
-        .setMinValues(0)
-        .setMaxValues(5)
-        .addOptions([
-          { label: "News", value: "1471296388104065237" },
-          { label: "Uploads", value: "1471296438909669549" },
-          { label: "Events", value: "1471296477581021336" },
-          { label: "Polls", value: "1471296524255363135" },
-          { label: "Updates", value: "1471296570271072266" }
-        ]);
-
-      const rows = [
-        new ActionRowBuilder().addComponents(regionMenu),
-        new ActionRowBuilder().addComponents(platformMenu),
-        new ActionRowBuilder().addComponents(ageMenu),
-        new ActionRowBuilder().addComponents(pingMenu)
-      ];
-
-      return interaction.reply({
-        content: "Select your roles:",
-        components: rows,
-        ephemeral: true
-      });
+      return interaction.reply({ content: "Choose your region:", components: [row] });
     }
   }
 
-  // ---------- SELECT MENU ----------
+  // ---------------- SELF ROLE HANDLER ----------------
+
   if (interaction.isStringSelectMenu()) {
-    const category = interaction.customId;
-    const selectedRoles = interaction.values;
+    const roleId = interaction.values[0];
+    const role = interaction.guild.roles.cache.get(roleId);
+    if (!role) return;
 
-    // Map of single-choice categories
-    const singleChoice = {
-      region_roles: ["REGION_EU_ROLEID","REGION_NA_ROLEID","REGION_SA_ROLEID","REGION_ASIA_ROLEID","REGION_AFR_ROLEID","REGION_OC_ROLEID"],
-      platform_roles: ["PLATFORM_PC_ROLEID","PLATFORM_XBOX_ROLEID","PLATFORM_PS_ROLEID","PLATFORM_MOBILE_ROLEID"],
-      age_roles: ["AGE_UNDER13_ROLEID","AGE_13_14_ROLEID","AGE_15_17_ROLEID","AGE_18_20_ROLEID","AGE_21_24_ROLEID","AGE_25PLUS_ROLEID"]
-    };
+    await interaction.member.roles.add(role);
 
-    // Remove previous roles if single-choice
-    if (singleChoice[category]) {
-      for (const r of singleChoice[category]) {
-        if (interaction.member.roles.cache.has(r)) {
-          await interaction.member.roles.remove(r).catch(() => {});
-        }
-      }
-    }
-
-    // Add selected role(s)
-    for (const r of selectedRoles) {
-      await interaction.member.roles.add(r).catch(() => {});
-    }
-
-    return interaction.reply({
-      content: "Your roles have been updated!",
-      ephemeral: true
-    });
+    return interaction.reply({ content: `Role ${role.name} added.`, ephemeral: true });
   }
 
-  // ---------- BUTTONS ----------
+  // ---------------- BUTTON HANDLER ----------------
+
   if (interaction.isButton()) {
 
-    const ticketTypes = {
-      ban: "ban-appeal",
-      report: "player-report",
-      media: "media-application",
-      discord: "discord-report",
-      bug: "bug-report",
-      purchase: "purchase-support",
-      connection: "connection-issue"
-    };
+    const type = interaction.customId;
 
-    if (ticketTypes[interaction.customId]) {
+    const modal = new ModalBuilder()
+      .setCustomId(`modal_${type}`)
+      .setTitle("Ticket Details");
 
-      const modal = new ModalBuilder()
-        .setCustomId(`ticket_modal_${interaction.customId}`)
-        .setTitle("Ticket Details");
+    const inputs = [];
 
-      const input = new TextInputBuilder()
-        .setCustomId("issue_input")
-        .setLabel("Describe your issue")
-        .setStyle(TextInputStyle.Paragraph)
-        .setRequired(true);
-
-      modal.addComponents(
-        new ActionRowBuilder().addComponents(input)
+    function addInput(id, label, style = TextInputStyle.Short, required = true) {
+      return new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId(id)
+          .setLabel(label)
+          .setStyle(style)
+          .setRequired(required)
       );
-
-      return interaction.showModal(modal);
     }
 
-    if (interaction.customId === "close_ticket") {
-
-      const transcript = await transcripts.createTranscript(interaction.channel);
-      const logChannel = await client.channels.fetch(LOG_CHANNEL_ID);
-
-      await logChannel.send({
-        content: `Ticket closed by ${interaction.user.tag}`,
-        files: [transcript]
-      });
-
-      return interaction.channel.delete();
+    if (type === "bug") {
+      inputs.push(
+        addInput("ign", "Minecraft IGN"),
+        addInput("what", "What happened?", TextInputStyle.Paragraph),
+        addInput("reproduce", "How to reproduce?", TextInputStyle.Paragraph),
+        addInput("time", "When did it happen?"),
+        addInput("evidence", "Evidence link (optional)", TextInputStyle.Short, false)
+      );
     }
+
+    if (type === "report") {
+      inputs.push(
+        addInput("yourign", "Your IGN"),
+        addInput("player", "Reported Player IGN"),
+        addInput("rule", "Rule broken"),
+        addInput("details", "What happened?", TextInputStyle.Paragraph),
+        addInput("evidence", "Evidence link")
+      );
+    }
+
+    if (type === "ban") {
+      inputs.push(
+        addInput("ign", "Minecraft IGN"),
+        addInput("reason", "Why were you banned?", TextInputStyle.Paragraph),
+        addInput("appeal", "Why should we unban you?", TextInputStyle.Paragraph),
+        addInput("change", "What will you do differently?"),
+        addInput("extra", "Anything else?", TextInputStyle.Short, false)
+      );
+    }
+
+    if (type === "media") {
+      inputs.push(
+        addInput("channel", "Channel Name"),
+        addInput("platform", "Platform"),
+        addInput("link", "Channel Link"),
+        addInput("views", "Average Views"),
+        addInput("why", "Why should we accept you?", TextInputStyle.Paragraph)
+      );
+    }
+
+    if (type === "purchase") {
+      inputs.push(
+        addInput("ign", "Minecraft IGN"),
+        addInput("item", "What did you purchase?"),
+        addInput("date", "Date of purchase"),
+        addInput("problem", "Describe the issue", TextInputStyle.Paragraph),
+        addInput("tx", "Transaction ID (optional)", TextInputStyle.Short, false)
+      );
+    }
+
+    if (type === "suggestion") {
+      inputs.push(
+        addInput("title", "Suggestion Title"),
+        addInput("desc", "Full description", TextInputStyle.Paragraph),
+        addInput("benefit", "How does this improve the server?"),
+        addInput("examples", "Examples (optional)", TextInputStyle.Short, false),
+        addInput("extra", "Anything else?", TextInputStyle.Short, false)
+      );
+    }
+
+    modal.addComponents(...inputs);
+
+    return interaction.showModal(modal);
   }
 
-  // ---------- MODAL ----------
+  // ---------------- MODAL SUBMIT ----------------
+
   if (interaction.isModalSubmit()) {
 
-    const type = interaction.customId.replace("ticket_modal_", "");
-    const issue = interaction.fields.getTextInputValue("issue_input");
+    const type = interaction.customId.replace("modal_", "");
 
     const channel = await interaction.guild.channels.create({
-      name: `${type}-${Date.now().toString().slice(-4)}`,
+      name: `${type}-${interaction.user.username}`.toLowerCase(),
       type: ChannelType.GuildText,
-      parent: CATEGORY_ID,
+      parent: TICKET_CATEGORY_ID,
       permissionOverwrites: [
         { id: interaction.guild.id, deny: [PermissionsBitField.Flags.ViewChannel] },
         { id: interaction.user.id, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages] },
-        { id: STAFF_ROLE_1, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages] },
-        { id: STAFF_ROLE_2, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages] }
+        { id: STAFF_ROLE_ID, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages] }
       ]
     });
+
+    const fields = interaction.fields.fields.map(f => ({
+      name: f[1].customId,
+      value: f[1].value || "N/A"
+    }));
+
+    const embed = new EmbedBuilder()
+      .setColor("#8B0000")
+      .setTitle(`Ticket: ${type}`)
+      .setDescription(`Opened by ${interaction.user}`)
+      .addFields(fields);
 
     const closeRow = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
@@ -355,22 +231,38 @@ client.on("interactionCreate", async interaction => {
     );
 
     await channel.send({
-      content: `${interaction.user} opened a ticket.`,
-      embeds: [
-        new EmbedBuilder()
-          .setColor("#8B0000")
-          .setTitle("Ticket Details")
-          .setDescription(issue)
-      ],
+      content: `<@&${STAFF_ROLE_ID}>`,
+      embeds: [embed],
       components: [closeRow]
     });
 
+    const logChannel = await client.channels.fetch(LOG_CHANNEL_ID);
+    logChannel.send(`New ticket created: ${channel}`);
+
     return interaction.reply({
-      content: `Ticket created: ${channel}`,
+      content: `Your ticket has been created: ${channel}`,
       ephemeral: true
     });
   }
 
+  // ---------------- CLOSE ----------------
+
+  if (interaction.isButton() && interaction.customId === "close_ticket") {
+
+    const transcript = await transcripts.createTranscript(interaction.channel);
+
+    const logChannel = await client.channels.fetch(LOG_CHANNEL_ID);
+    await logChannel.send({
+      content: `Ticket closed by ${interaction.user.tag}`,
+      files: [transcript]
+    });
+
+    await interaction.reply({ content: "Closing ticket in 5 seconds..." });
+
+    setTimeout(() => {
+      interaction.channel.delete().catch(() => {});
+    }, 5000);
+  }
 });
 
 client.login(TOKEN);
