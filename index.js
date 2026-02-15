@@ -34,7 +34,7 @@ const {
   STAFF_ROLE_ID
 } = process.env;
 
-const PANEL_IMAGE = "https://cdn.discordapp.com/attachments/1457429025227280577/1471197949559181603/EC5EE755-447D-41DA-B199-868DE5A1EB65.png";
+const PANEL_IMAGE = "https://cdn.discordapp.com/attachments/1457429025227280577/1471197949559181603/EC5EE755-447D-41DA-B199-868DE5A1EB65.png?ex=6993555c&is=699203dc&hm=df8920e3355db4e575012756999da243dcfde0856eb79a3ee3a2207b7e00c4bc&";
 
 /* ================= LOAD DATA ================= */
 
