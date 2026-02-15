@@ -38,10 +38,19 @@ const PANEL_IMAGE = "https://cdn.discordapp.com/attachments/1457429025227280577/
 
 /* ================= LOAD DATA ================= */
 
-let ticketData = JSON.parse(fs.readFileSync("./tickets.json"));
+const dataPath = "./tickets.json";
+
+if (!fs.existsSync(dataPath)) {
+  fs.writeFileSync(
+    dataPath,
+    JSON.stringify({ counter: 1, active: {} }, null, 2)
+  );
+}
+
+let ticketData = JSON.parse(fs.readFileSync(dataPath));
 
 function saveData() {
-  fs.writeFileSync("./tickets.json", JSON.stringify(ticketData, null, 2));
+  fs.writeFileSync(dataPath, JSON.stringify(ticketData, null, 2));
 }
 
 /* ================= READY ================= */
