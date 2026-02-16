@@ -16,6 +16,20 @@ const {
 
 const transcripts = require("discord-html-transcripts");
 const fs = require("fs");
+const express = require("express");
+
+/* ================= EXPRESS (FOR RENDER) ================= */
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+app.get("/", (req, res) => {
+  res.send("Bot is running.");
+});
+
+app.listen(PORT, () => {
+  console.log(`Web server running on port ${PORT}`);
+});
 
 /* ================= CLIENT ================= */
 
@@ -83,7 +97,6 @@ function buildPanel() {
       .setCustomId("ticket_ban_appeal")
       .setLabel("Ban Appeal")
       .setStyle(ButtonStyle.Danger),
-
     new ButtonBuilder()
       .setCustomId("ticket_player_report")
       .setLabel("Player Report")
@@ -95,7 +108,6 @@ function buildPanel() {
       .setCustomId("ticket_bug_report")
       .setLabel("Bug Report")
       .setStyle(ButtonStyle.Primary),
-
     new ButtonBuilder()
       .setCustomId("ticket_media_application")
       .setLabel("Media Application")
@@ -107,7 +119,6 @@ function buildPanel() {
       .setCustomId("ticket_purchase_support")
       .setLabel("Purchase Support")
       .setStyle(ButtonStyle.Success),
-
     new ButtonBuilder()
       .setCustomId("ticket_connection_issue")
       .setLabel("Connection Issue")
@@ -121,6 +132,7 @@ function buildPanel() {
 
 client.on("interactionCreate", async interaction => {
   try {
+
     /* ---------- SLASH ---------- */
 
     if (interaction.isChatInputCommand()) {
@@ -137,7 +149,7 @@ client.on("interactionCreate", async interaction => {
 
     if (interaction.isButton()) {
 
-      /* ---- CLOSE ---- */
+      /* ---- CLOSE TICKET ---- */
 
       if (interaction.customId === "close_ticket") {
         if (!interaction.member.roles.cache.has(STAFF_ROLE_ID))
