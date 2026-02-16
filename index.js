@@ -18,7 +18,7 @@ const transcripts = require("discord-html-transcripts");
 const fs = require("fs");
 const express = require("express");
 
-/* ================= EXPRESS (FOR RENDER) ================= */
+/* ================= EXPRESS (FOR RENDER WEB SERVICE) ================= */
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -47,9 +47,22 @@ const client = new Client({
 const {
   TOKEN,
   TICKET_CATEGORY_ID,
-  LOG_CHANNEL_ID,
-  STAFF_ROLE_ID
+  LOG_CHANNEL_ID
 } = process.env;
+
+/* ================= STAFF ROLES ================= */
+
+const STAFF_ROLES = [
+  "1454488584869646368", // Grave / Owner
+  "1454449956139302945", // Admin
+  "1471643410669506741", // SMP Admin
+  "1471643452151169258", // Mod
+  "1471643489467891772", // SMP Mod
+  "1471049595847966812", // Helper
+  "1471643366767722752"  // SMP Helper
+];
+
+/* ================= PANEL IMAGE ================= */
 
 const PANEL_IMAGE =
   "https://cdn.discordapp.com/attachments/1457429025227280577/1471197949559181603/EC5EE755-447D-41DA-B199-868DE5A1EB65.png";
@@ -152,14 +165,17 @@ client.on("interactionCreate", async interaction => {
       /* ---- CLOSE TICKET ---- */
 
       if (interaction.customId === "close_ticket") {
-        if (!interaction.member.roles.cache.has(STAFF_ROLE_ID))
+
+        const isStaff = interaction.member.roles.cache
+          .some(role => STAFF_ROLES.includes(role.id));
+
+        if (!isStaff)
           return interaction.reply({ content: "Staff only.", ephemeral: true });
 
         const ticket = ticketData.active[interaction.channel.id];
         if (!ticket) return;
 
         const transcript = await transcripts.createTranscript(interaction.channel);
-
         const logChannel = await client.channels.fetch(LOG_CHANNEL_ID);
 
         await logChannel.send({
@@ -213,64 +229,10 @@ client.on("interactionCreate", async interaction => {
           );
         }
 
-        switch (type) {
-          case "ban_appeal":
-            modal.addComponents(
-              input("ign", "Minecraft IGN"),
-              input("reason", "Why were you banned?", TextInputStyle.Paragraph),
-              input("why_unban", "Why should we unban you?", TextInputStyle.Paragraph),
-              input("future", "What will you change?")
-            );
-            break;
-
-          case "player_report":
-            modal.addComponents(
-              input("your_ign", "Your IGN"),
-              input("reported_player", "Player IGN"),
-              input("player_id", "Player ID (if known)"),
-              input("reason", "Reason for report", TextInputStyle.Paragraph),
-              input("evidence", "Evidence links")
-            );
-            break;
-
-          case "bug_report":
-            modal.addComponents(
-              input("ign", "Minecraft IGN"),
-              input("bug_description", "Describe the bug", TextInputStyle.Paragraph),
-              input("how_to_reproduce", "How to reproduce it", TextInputStyle.Paragraph),
-              input("server_version", "Server / MC Version")
-            );
-            break;
-
-          case "media_application":
-            modal.addComponents(
-              input("channel_name", "Channel Name"),
-              input("platform", "Platform"),
-              input("link", "Channel Link"),
-              input("subs_followers", "Subs / Followers"),
-              input("why", "Why should we accept you?", TextInputStyle.Paragraph)
-            );
-            break;
-
-          case "purchase_support":
-            modal.addComponents(
-              input("ign", "Minecraft IGN"),
-              input("purchase_item", "What did you purchase?"),
-              input("transaction_id", "Transaction ID"),
-              input("issue", "Describe the issue", TextInputStyle.Paragraph)
-            );
-            break;
-
-          case "connection_issue":
-            modal.addComponents(
-              input("ign", "Minecraft IGN"),
-              input("error", "Error message"),
-              input("version", "Minecraft Version"),
-              input("platform", "Platform"),
-              input("description", "Describe the issue", TextInputStyle.Paragraph)
-            );
-            break;
-        }
+        modal.addComponents(
+          input("ign", "Minecraft IGN"),
+          input("details", "Explain your issue", TextInputStyle.Paragraph)
+        );
 
         return interaction.showModal(modal);
       }
@@ -279,7 +241,6 @@ client.on("interactionCreate", async interaction => {
     /* ---------- MODAL SUBMIT ---------- */
 
     if (interaction.isModalSubmit()) {
-      const type = interaction.customId.replace("modal_", "");
       const id = ticketData.counter++;
 
       const channel = await interaction.guild.channels.create({
@@ -289,30 +250,30 @@ client.on("interactionCreate", async interaction => {
         permissionOverwrites: [
           { id: interaction.guild.id, deny: [PermissionsBitField.Flags.ViewChannel] },
           { id: interaction.user.id, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages] },
-          { id: STAFF_ROLE_ID, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages] }
+          ...STAFF_ROLES.map(roleId => ({
+            id: roleId,
+            allow: [
+              PermissionsBitField.Flags.ViewChannel,
+              PermissionsBitField.Flags.SendMessages
+            ]
+          }))
         ]
       });
 
       ticketData.active[channel.id] = {
         id,
-        user: interaction.user.id,
-        type
+        user: interaction.user.id
       };
 
       saveData();
 
-      const fields = [];
-      for (const field of interaction.fields.fields.values()) {
-        fields.push({
-          name: field.customId.replace(/_/g, " ").toUpperCase(),
-          value: field.value
-        });
-      }
-
       const embed = new EmbedBuilder()
         .setColor("#8B0000")
         .setTitle(`🎟 Ticket #${id}`)
-        .addFields(fields)
+        .addFields(
+          { name: "IGN", value: interaction.fields.getTextInputValue("ign") },
+          { name: "Details", value: interaction.fields.getTextInputValue("details") }
+        )
         .setTimestamp();
 
       const row = new ActionRowBuilder().addComponents(
@@ -323,7 +284,7 @@ client.on("interactionCreate", async interaction => {
       );
 
       await channel.send({
-        content: `<@&${STAFF_ROLE_ID}>`,
+        content: `<@${interaction.user.id}>`,
         embeds: [embed],
         components: [row]
       });
